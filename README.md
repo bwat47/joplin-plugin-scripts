@@ -1,0 +1,80 @@
+# @bwat47/joplin-plugin-scripts
+
+Shared build tooling for Joplin plugins: an esbuild-based replacement for the
+generator-joplin Webpack config and its scripts.
+
+## Usage
+
+```sh
+npm install -D @bwat47/joplin-plugin-scripts
+```
+
+```json
+"scripts": {
+    "dist": "npm run typecheck && joplin-plugin-scripts build",
+    "updateVersion": "joplin-plugin-scripts update-version",
+    "updateApi": "joplin-plugin-scripts update-api"
+}
+```
+
+Commands run from the plugin project root, which npm scripts do automatically.
+
+| Command          | What it does                                                                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `build`          | Validates the project, clears `dist/` and `publish/`, copies runtime assets from `src/`, bundles, and writes `publish/<id>.jpl` and `<id>.json`. |
+| `update-version` | Increments the patch version in `package.json`, `src/manifest.json`, and `package-lock.json` together, or writes nothing.                        |
+| `update-api`     | Replaces `api/` with the latest generator-joplin API and warns if the category or content-script external lists here differ.                     |
+
+### Project layout expected
+
+- `src/index.ts`: main entry point, bundled to `dist/index.js` for the Node platform.
+  `node:` imports are rewritten to bare names for Joplin's plugin runtime.
+- `src/manifest.json` and `package.json`: versions must match; the package name starts
+  with `joplin-plugin-` and `keywords` includes `joplin-plugin`.
+- `api/`: resolved through `tsconfig.json` `paths` (`api` and `api/*`).
+- Other files in `src/` are copied to `dist/`, except TypeScript sources, `*.test.*` /
+  `*.spec.*` files, and anything under `fixtures/` or `__tests__/` directories.
+
+### `plugin.config.json` (optional)
+
+```json
+{
+    "extraScripts": ["contentScripts/codeMirror.ts"],
+    "mainBuildOptions": { "external": ["jsdom"] }
+}
+```
+
+- `extraScripts`: content scripts relative to `src/`, bundled for the browser to the same
+  path under `dist/` with a `.js` extension. Joplin's CodeMirror and Lezer packages stay
+  external so they share the host's instances.
+- `mainBuildOptions`: esbuild options merged over the main bundle's defaults. Relative
+  `alias` targets resolve from the project root. `absWorkingDir`, `entryPoints`,
+  `outfile`, and `outdir` cannot be overridden.
+
+### Testing a plugin's bundles
+
+The package exports the same esbuild options the build uses, so plugin tests can build
+in memory and run the result:
+
+```js
+import { createBuildOptions, createContentScriptBuildOptions, readPluginConfig } from '@bwat47/joplin-plugin-scripts';
+
+const { mainBuildOptions } = await readPluginConfig(root);
+const result = await build({ ...createBuildOptions(root, mainBuildOptions), write: false });
+```
+
+`contentScriptExternals` is also exported.
+
+## Development
+
+```sh
+npm test
+npm run lint
+npm run format
+```
+
+To try a change in a plugin before publishing, run `npm pack` here and
+`npm install -D ../joplin-plugin-scripts/bwat47-joplin-plugin-scripts-<version>.tgz` in the plugin.
+
+Release: bump `version`, then `npm publish --access public` (`prepublishOnly` runs lint,
+format check, and tests).
