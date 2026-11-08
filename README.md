@@ -57,7 +57,9 @@ Commands run from the plugin project root, which npm scripts do automatically.
   top level. Plain `.js` files in `src/` are copied as-is and don't need listing.
 - `mainBuildOptions`: esbuild options merged over the main bundle's defaults. Relative
   `alias` targets resolve from the project root. `absWorkingDir`, `entryPoints`,
-  `outfile`, and `outdir` cannot be overridden.
+  `outfile`, `outdir`, `write`, `format`, and `plugins` cannot be overridden: packaging
+  needs the bundle on disk, Joplin loads it as CommonJS, and the build's own esbuild
+  plugin rewrites `node:` imports.
   `define` entries merge individually with the defaults, preserving
   `process.env.NODE_ENV` as `"production"` unless explicitly overridden.
 

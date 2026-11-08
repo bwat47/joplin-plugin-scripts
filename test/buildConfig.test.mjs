@@ -62,6 +62,9 @@ test('explains a malformed plugin config', async (t) => {
         [JSON.stringify({ extraScripts: ['a.ts'], webviewScripts: ['a.js'] }), /more than one script .*dist\/a\.js/],
         [JSON.stringify({ mainBuildOptions: [] }), /"mainBuildOptions" must be an object/],
         [JSON.stringify({ mainBuildOptions: { outfile: 'x.js' } }), /cannot set outfile/],
+        [JSON.stringify({ mainBuildOptions: { write: false } }), /cannot set write/],
+        [JSON.stringify({ mainBuildOptions: { format: 'esm' } }), /cannot set format/],
+        [JSON.stringify({ mainBuildOptions: { plugins: [], minify: false } }), /cannot set plugins\./],
         [JSON.stringify({ mainBuildOptions: { define: 'x' } }), /"mainBuildOptions\.define" must be an object/],
         [JSON.stringify({ mainBuildOptions: { define: { __DEBUG__: false } } }), /"mainBuildOptions\.define" must be/],
     ];
