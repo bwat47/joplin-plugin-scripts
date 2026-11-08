@@ -6,6 +6,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
 
+import { PluginScriptsError } from '../lib/errors.mjs';
 import { packagePlugin, readProject } from '../lib/packagePlugin.mjs';
 import { archiveEntries, projectFixture, writeFiles } from './helpers.mjs';
 
@@ -80,9 +81,10 @@ test('validates the plugin ID, versions, package name, categories, and local scr
         [{ categories: ['editor', 'editor'] }, /categories/],
         [{ screenshots: [{}] }, /specify src/],
         [{ screenshots: [{ src: 'shot.svg' }] }, /Unsupported screenshot type/],
-        [{ screenshots: [{ src: 'missing.png' }] }, /ENOENT/],
+        [{ screenshots: [{ src: 'missing.png' }] }, /Screenshot not found: missing.png/],
     ]) {
         await writeFile(path.join(directory, 'src/manifest.json'), JSON.stringify({ ...manifest, ...change }));
+        await assert.rejects(readProject(directory), PluginScriptsError);
         await assert.rejects(readProject(directory), message);
     }
     await writeFile(path.join(directory, 'src/manifest.json'), JSON.stringify(manifest));
