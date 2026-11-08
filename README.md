@@ -29,8 +29,10 @@ Commands run from the plugin project root, which npm scripts do automatically.
 - `update-version`: increments the patch version across `package.json`,
   `src/manifest.json`, and `package-lock.json`.
 - `update-api`: replaces `api/` with the latest generator-joplin API, and warns if the
-  category or content-script external lists here differ. Requires npm, even when scripts
-  run through Yarn or pnpm.
+  category or content-script external lists here differ. Downloads generator-joplin
+  directly from the registry in `npm_config_registry` (set by npm scripts), or
+  registry.npmjs.org, and verifies its integrity hash. npm itself is not needed;
+  registry authentication and proxy settings in `.npmrc` are not used.
 
 ## Project layout
 
