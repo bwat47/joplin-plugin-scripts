@@ -20,11 +20,11 @@ npm install -D @bwat47/joplin-plugin-scripts
 
 Commands run from the plugin project root, which npm scripts do automatically.
 
-| Command          | What it does                                                                                                                                     |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `build`          | Validates the project, clears `dist/` and `publish/`, copies runtime assets from `src/`, bundles, and writes `publish/<id>.jpl` and `<id>.json`. |
-| `update-version` | Increments the patch version across `package.json`, `src/manifest.json`, and `package-lock.json`.                                                |
-| `update-api`     | Replaces `api/` with the latest generator-joplin API and warns if the category or content-script external lists here differ.                     |
+| Command          | What it does                                                                                                                                                                           |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build`          | Validates the project, clears `dist/` and `publish/`, copies runtime assets from `src/`, bundles, and writes `publish/<id>.jpl` and `<id>.json`.                                       |
+| `update-version` | Increments the patch version across `package.json`, `src/manifest.json`, and `package-lock.json`.                                                                                      |
+| `update-api`     | Replaces `api/` with the latest generator-joplin API and warns if the category or content-script external lists here differ. Requires npm, even when scripts run through Yarn or pnpm. |
 
 ### Expected project layout
 
