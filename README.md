@@ -57,6 +57,8 @@ Commands run from the plugin project root, which npm scripts do automatically.
 - `mainBuildOptions`: esbuild options merged over the main bundle's defaults. Relative
   `alias` targets resolve from the project root. `absWorkingDir`, `entryPoints`,
   `outfile`, and `outdir` cannot be overridden.
+  `define` entries merge individually with the defaults, preserving
+  `process.env.NODE_ENV` as `"production"` unless explicitly overridden.
 
 Script output paths must be unique after normalization. They are compared without case on
 every platform, since the archive may be installed on a case-insensitive filesystem.

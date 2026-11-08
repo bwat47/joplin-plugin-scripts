@@ -62,6 +62,8 @@ test('explains a malformed plugin config', async (t) => {
         [JSON.stringify({ extraScripts: ['a.ts'], webviewScripts: ['a.js'] }), /more than one script .*dist\/a\.js/],
         [JSON.stringify({ mainBuildOptions: [] }), /"mainBuildOptions" must be an object/],
         [JSON.stringify({ mainBuildOptions: { outfile: 'x.js' } }), /cannot set outfile/],
+        [JSON.stringify({ mainBuildOptions: { define: 'x' } }), /"mainBuildOptions\.define" must be an object/],
+        [JSON.stringify({ mainBuildOptions: { define: { __DEBUG__: false } } }), /"mainBuildOptions\.define" must be/],
     ];
     for (const [text, message] of cases) {
         await writeFile(configPath, text);
@@ -79,6 +81,16 @@ test('merges main build overrides over the defaults', () => {
     assert.deepEqual(options.external, ['jsdom']);
     assert.equal(options.minify, false);
     assert.equal(options.outfile, 'dist/index.js');
+});
+
+test('preserves default definitions when adding custom definitions and allows explicit overrides', () => {
+    const options = createBuildOptions(root, { define: { __DEBUG__: 'false' } });
+    assert.deepEqual(options.define, {
+        'process.env.NODE_ENV': '"production"',
+        __DEBUG__: 'false',
+    });
+    const overridden = createBuildOptions(root, { define: { 'process.env.NODE_ENV': '"development"' } });
+    assert.deepEqual(overridden.define, { 'process.env.NODE_ENV': '"development"' });
 });
 
 test('maps content scripts to dist and rejects paths outside src', () => {
