@@ -58,6 +58,11 @@ Commands run from the plugin project root, which npm scripts do automatically.
   `alias` targets resolve from the project root. `absWorkingDir`, `entryPoints`,
   `outfile`, and `outdir` cannot be overridden.
 
+Script output paths must be unique after normalization. They are compared without case on
+every platform, since the archive may be installed on a case-insensitive filesystem.
+`dist/index.js` is reserved for the main bundle. Invalid paths and collisions are rejected
+before existing build output is cleared.
+
 ### Testing a plugin's bundles
 
 The package exports the same esbuild options the build uses, so plugin tests can build

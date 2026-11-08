@@ -86,6 +86,31 @@ test('fails the build before clearing output when the project is invalid', async
     assert.equal(await readFile(path.join(directory, 'dist/index.js'), 'utf8'), '/* bundled plugin */');
 });
 
+test('rejects colliding script outputs before clearing existing bundles', async (t) => {
+    const { directory } = await projectFixture(t);
+    const reserved = /reserved for the main bundle/;
+    const duplicate = /more than one script/;
+    const cases = [
+        [{ extraScripts: ['index.ts'] }, reserved],
+        [{ webviewScripts: ['./index.jsx'] }, reserved],
+        [{ extraScripts: ['INDEX.ts'] }, reserved],
+        [{ extraScripts: ['editor.ts', './editor.js'] }, duplicate],
+        [{ extraScripts: ['scripts/editor.ts'], webviewScripts: ['./scripts//editor.jsx'] }, duplicate],
+        [{ extraScripts: ['scripts/editor.ts'], webviewScripts: ['scripts\\EDITOR.js'] }, duplicate],
+        // A malformed path is reported as invalid, not as the collision it normalizes to.
+        [{ extraScripts: ['a/../index.ts'] }, /Invalid extra script path/],
+    ];
+    for (const [config, expected] of cases) {
+        await writeFiles(directory, {
+            'plugin.config.json': JSON.stringify(config),
+            'publish/previous.jpl': 'previous archive',
+        });
+        assert.throws(() => runCli(directory, 'build'), expected, JSON.stringify(config));
+        assert.equal(await readFile(path.join(directory, 'dist/index.js'), 'utf8'), '/* bundled plugin */');
+        assert.equal(await readFile(path.join(directory, 'publish/previous.jpl'), 'utf8'), 'previous archive');
+    }
+});
+
 test('prints usage for unknown commands', async (t) => {
     const { directory } = await projectFixture(t);
     assert.throws(() => runCli(directory, 'deploy'), /Usage: joplin-plugin-scripts <command>/);
