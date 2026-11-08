@@ -21,6 +21,29 @@ test('bumps package, manifest, and both lockfile versions together', async (t) =
     assert.equal(lock.packages[''].version, '1.2.4');
 });
 
+test('version bumps keep the lockfile indent and newline style', async (t) => {
+    const lock = (/** @type {string} */ version) => ({
+        name: 'joplin-plugin-test',
+        version,
+        packages: { '': { version }, 'node_modules/dep': { version: '1.2.3' } },
+    });
+    for (const [indent, newline] of [
+        ['  ', '\n'],
+        ['    ', '\n'],
+        ['\t', '\n'],
+        ['  ', '\r\n'],
+        ['', ''],
+    ]) {
+        const format = (/** @type {string} */ version) =>
+            `${JSON.stringify(lock(version), null, indent)}\n`.replaceAll('\n', newline);
+        const { directory } = await projectFixture(t);
+        const fixtureLock = path.join(directory, 'package-lock.json');
+        await writeFile(fixtureLock, format('1.2.3'));
+        await updateVersion(directory);
+        assert.equal(await readFile(fixtureLock, 'utf8'), format('1.2.4'), JSON.stringify({ indent, newline }));
+    }
+});
+
 test('version bumps change only the version in hand-formatted package.json and manifest', async (t) => {
     const { directory } = await projectFixture(t);
     const manifestText = (/** @type {string} */ version) =>
