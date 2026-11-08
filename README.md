@@ -71,6 +71,23 @@ Each option group merges esbuild options over the defaults for its bundle type:
 | `contentScriptBuildOptions` | Every content script |
 | `webviewScriptBuildOptions` | Every webview script |
 
+All bundles target ES2020 by default, whereas the standard Joplin generator
+[targets ES2015](https://github.com/laurent22/joplin/blob/dev/packages/generator-joplin/generators/app/templates/tsconfig.json).
+Override `target` independently for each bundle type when supporting older runtimes:
+
+```json
+{
+    "mainBuildOptions": { "target": "es2015" },
+    "contentScriptBuildOptions": { "target": "es2015" },
+    "webviewScriptBuildOptions": { "target": "es2015" }
+}
+```
+
+The build uses this setting rather than `compilerOptions.target` in `tsconfig.json`.
+The [esbuild target](https://esbuild.github.io/api/#target) controls emitted syntax;
+it does not polyfill newer APIs such as `Object.fromEntries`. Test your plugin on
+the Joplin versions and platforms you support, even when lowering the target.
+
 - Relative `alias` targets resolve from the project root.
 - `define` entries merge individually, preserving `process.env.NODE_ENV` as
   `"production"` unless explicitly overridden.
