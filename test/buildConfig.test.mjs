@@ -4,8 +4,10 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
+    contentScriptExternals,
     createBuildOptions,
     createContentScriptBuildOptions,
+    createWebviewScriptBuildOptions,
     isRuntimeAsset,
     readPluginConfig,
 } from '../lib/buildConfig.mjs';
@@ -39,11 +41,15 @@ test('reads an optional plugin config with defaults', async (t) => {
         extraScripts: [],
         webviewScripts: [],
         mainBuildOptions: {},
+        contentScriptBuildOptions: {},
+        webviewScriptBuildOptions: {},
     });
     const config = {
         extraScripts: ['contentScripts/a.ts'],
         webviewScripts: ['dialog/b.ts'],
         mainBuildOptions: { external: ['jsdom'] },
+        contentScriptBuildOptions: { minify: false },
+        webviewScriptBuildOptions: { sourcemap: 'inline' },
     };
     await writeFile(path.join(directory, 'plugin.config.json'), JSON.stringify(config));
     assert.deepEqual(await readPluginConfig(directory), config);
@@ -67,10 +73,42 @@ test('explains a malformed plugin config', async (t) => {
         [JSON.stringify({ mainBuildOptions: { plugins: [], minify: false } }), /cannot set plugins\./],
         [JSON.stringify({ mainBuildOptions: { define: 'x' } }), /"mainBuildOptions\.define" must be an object/],
         [JSON.stringify({ mainBuildOptions: { define: { __DEBUG__: false } } }), /"mainBuildOptions\.define" must be/],
+        [JSON.stringify({ mainBuildOptions: { external: 'jsdom' } }), /"mainBuildOptions\.external" must be an array/],
+        [JSON.stringify({ contentScriptBuildOptions: [] }), /"contentScriptBuildOptions" must be an object/],
+        [
+            JSON.stringify({ contentScriptBuildOptions: { format: 'esm' } }),
+            /"contentScriptBuildOptions" cannot set format/,
+        ],
+        [JSON.stringify({ contentScriptBuildOptions: { platform: 'node' } }), /cannot set platform/],
+        [
+            JSON.stringify({ contentScriptBuildOptions: { external: [1] } }),
+            /"contentScriptBuildOptions\.external" must/,
+        ],
+        [
+            JSON.stringify({ webviewScriptBuildOptions: { define: { A: 1 } } }),
+            /"webviewScriptBuildOptions\.define" must/,
+        ],
+        [JSON.stringify({ webviewScriptBuildOptions: { external: ['x'] } }), /cannot set external/],
+        [JSON.stringify({ webviewScriptBuildOptions: { outfile: 'x.js' } }), /cannot set outfile/],
     ];
     for (const [text, message] of cases) {
         await writeFile(configPath, text);
         await assert.rejects(readPluginConfig(directory), message, text);
+    }
+});
+
+test('rejects options that would leave runtime requires in any bundle', async (t) => {
+    const { directory } = await projectFixture(t);
+    const configPath = path.join(directory, 'plugin.config.json');
+    for (const key of ['mainBuildOptions', 'contentScriptBuildOptions', 'webviewScriptBuildOptions']) {
+        for (const [option, value] of /** @type {[string, unknown][]} */ ([
+            ['bundle', false],
+            ['packages', 'external'],
+        ])) {
+            const text = JSON.stringify({ [key]: { [option]: value } });
+            await writeFile(configPath, text);
+            await assert.rejects(readPluginConfig(directory), new RegExp(`"${key}" cannot set ${option}\\.`), text);
+        }
     }
 });
 
@@ -94,6 +132,37 @@ test('preserves default definitions when adding custom definitions and allows ex
     });
     const overridden = createBuildOptions(root, { define: { 'process.env.NODE_ENV': '"development"' } });
     assert.deepEqual(overridden.define, { 'process.env.NODE_ENV': '"development"' });
+});
+
+test('defaults script build options when the config omits them', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFile(path.join(directory, 'plugin.config.json'), JSON.stringify({ extraScripts: ['a.ts'] }));
+    const config = await readPluginConfig(directory);
+    assert.deepEqual(config.contentScriptBuildOptions, {});
+    assert.deepEqual(config.webviewScriptBuildOptions, {});
+});
+
+test('merges content-script overrides, keeping host libraries external and default definitions', () => {
+    const options = createContentScriptBuildOptions(root, 'cs.ts', {
+        minify: false,
+        external: ['extra-lib', '@codemirror/view'],
+        define: { __DEBUG__: 'true' },
+    });
+    assert.equal(options.minify, false);
+    assert.equal(options.format, 'cjs');
+    assert.deepEqual(options.external, [...contentScriptExternals, 'extra-lib']);
+    assert.deepEqual(options.define, { 'process.env.NODE_ENV': '"production"', __DEBUG__: 'true' });
+    assert.equal(options.outfile, 'dist/cs.js');
+});
+
+test('merges webview-script overrides while keeping a self-contained IIFE', () => {
+    const options = createWebviewScriptBuildOptions(root, 'dialog.ts', { sourcemap: 'inline' });
+    assert.equal(options.sourcemap, 'inline');
+    assert.equal(options.format, 'iife');
+    assert.deepEqual(options.external, []);
+    assert.deepEqual(options.define, { 'process.env.NODE_ENV': '"production"' });
+    // Content-script overrides are not part of a webview script's defaults.
+    assert.deepEqual(createWebviewScriptBuildOptions(root, 'dialog.ts').sourcemap, undefined);
 });
 
 test('maps content scripts to dist and rejects paths outside src', () => {

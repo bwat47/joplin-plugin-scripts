@@ -93,6 +93,54 @@ test('builds webview scripts that run as plain scripts without module, exports, 
     assert.equal(window.initialized, 'ready');
 });
 
+test('applies content-script and webview-script build options only to their own scripts', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({
+            extraScripts: ['contentScripts/editor.ts'],
+            webviewScripts: ['dialog/dialog.ts'],
+            contentScriptBuildOptions: { sourcemap: 'inline' },
+            webviewScriptBuildOptions: { define: { __LABEL__: '"from-config"' } },
+        }),
+        'src/index.ts': 'export {};\n',
+        'src/contentScripts/editor.ts':
+            'declare const __LABEL__: string;\n' +
+            "export default () => (typeof __LABEL__ === 'undefined' ? 'none' : __LABEL__);\n",
+        'src/dialog/dialog.ts':
+            'declare const __LABEL__: string;\n' +
+            'declare const window: { label: string };\n' +
+            'window.label = __LABEL__;\n',
+    });
+    runCli(directory, 'build');
+
+    const contentScript = await readFile(path.join(directory, 'dist/contentScripts/editor.js'), 'utf8');
+    const webviewScript = await readFile(path.join(directory, 'dist/dialog/dialog.js'), 'utf8');
+    assert.match(contentScript, /sourceMappingURL=data:/);
+    assert.doesNotMatch(contentScript, /from-config/);
+    assert.doesNotMatch(webviewScript, /sourceMappingURL/);
+    /** @type {{ label?: string }} */
+    const window = {};
+    // eslint-disable-next-line sonarjs/code-eval -- Executes only the bundle this test just built, with a controlled host stub.
+    runInNewContext(webviewScript, { window });
+    assert.equal(window.label, 'from-config');
+});
+
+test('rejects an unbundled webview script before building it with runtime requires', async (t) => {
+    const { directory } = await projectFixture(t);
+    // Unbundled, esbuild would build this as an IIFE calling require('./label'), which a webview lacks.
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({
+            webviewScripts: ['dialog/dialog.ts'],
+            webviewScriptBuildOptions: { bundle: false },
+        }),
+        'src/index.ts': 'export {};\n',
+        'src/dialog/dialog.ts': "import { label } from './label';\nconsole.log(label);\n",
+        'src/dialog/label.ts': "export const label = 'ready';\n",
+    });
+    assert.throws(() => runCli(directory, 'build'), /"webviewScriptBuildOptions" cannot set bundle/);
+    assert.equal(await readFile(path.join(directory, 'dist/index.js'), 'utf8'), '/* bundled plugin */');
+});
+
 test('fails the build before clearing output when the project is invalid', async (t) => {
     const { directory } = await projectFixture(t);
     await writeFiles(directory, { 'plugin.config.json': '{ "extraScripts": "editor.ts" }' });

@@ -42,7 +42,9 @@ Commands run from the plugin project root, which npm scripts do automatically.
 {
     "extraScripts": ["contentScripts/codeMirror.ts"],
     "webviewScripts": ["dialog/dialog.ts"],
-    "mainBuildOptions": { "external": ["jsdom"] }
+    "mainBuildOptions": { "external": ["jsdom"] },
+    "contentScriptBuildOptions": { "sourcemap": "inline" },
+    "webviewScriptBuildOptions": { "minify": false }
 }
 ```
 
@@ -57,11 +59,21 @@ Commands run from the plugin project root, which npm scripts do automatically.
   top level. Plain `.js` files in `src/` are copied as-is and don't need listing.
 - `mainBuildOptions`: esbuild options merged over the main bundle's defaults. Relative
   `alias` targets resolve from the project root. `absWorkingDir`, `entryPoints`,
-  `outfile`, `outdir`, `write`, `format`, and `plugins` cannot be overridden: packaging
-  needs the bundle on disk, Joplin loads it as CommonJS, and the build's own esbuild
-  plugin rewrites `node:` imports.
+  `outfile`, `outdir`, `write`, `format`, `plugins`, `bundle`, and `packages` cannot be
+  overridden: packaging needs the bundle on disk, Joplin loads it as CommonJS, the
+  build's own esbuild plugin rewrites `node:` imports, and each output must be a single
+  self-contained file. To leave a specific package as a runtime import, list it in
+  `external`.
   `define` entries merge individually with the defaults, preserving
   `process.env.NODE_ENV` as `"production"` unless explicitly overridden.
+- `contentScriptBuildOptions` and `webviewScriptBuildOptions`: esbuild options merged over
+  the defaults of every content script or every webview script, respectively. Each kind
+  only gets its own options. The `mainBuildOptions` rules for reserved options and
+  `define` apply, and `platform` also cannot be set, since both kinds run in a webview.
+  For content scripts, `external` entries are added to the CodeMirror and Lezer packages,
+  which always stay external. Webview scripts cannot set `external`, because a
+  `<script>` tag has no `require` to load it. For debugging, prefer `"sourcemap": "inline"`:
+  `true` writes `.js.map` files into `dist/`, and they ship in the `.jpl`.
 
 Script output paths must be unique after normalization. They are compared without case on
 every platform, since the archive may be installed on a case-insensitive filesystem.
@@ -138,9 +150,9 @@ External dependencies remain runtime imports and must be available in Joplin's
 plugin runtime; marking a package external does not include it in the archive.
 
 The standard setup applies `webpackOverrides` to both main and content-script
-builds. Here, `mainBuildOptions` affects only the main bundle; content scripts and
-webview scripts use the fixed options described above. Review any customizations
-that previously affected those scripts before migrating.
+builds. Here, `mainBuildOptions` affects only the main bundle. Move settings that
+should also apply to content scripts into `contentScriptBuildOptions`, and review any
+customizations that previously affected those scripts before migrating.
 
 ### Testing a plugin's bundles
 
