@@ -154,7 +154,9 @@ const { mainBuildOptions } = await readPluginConfig(root);
 const result = await build({ ...createBuildOptions(root, mainBuildOptions), write: false });
 ```
 
-`createWebviewScriptBuildOptions` and `contentScriptExternals` are also exported.
+`createWebviewScriptBuildOptions` and `contentScriptExternals` are also exported, along with
+`PluginScriptsError`, the class of expected failures such as invalid configuration. The CLI prints
+only the message for these; other errors keep their stack trace.
 
 ## Development
 

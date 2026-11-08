@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -128,4 +129,36 @@ test('prints usage for unknown commands', async (t) => {
     const { directory } = await projectFixture(t);
     assert.throws(() => runCli(directory, 'deploy'), /Usage: joplin-plugin-scripts <command>/);
     assert.match(runCli(directory, '--help'), /Commands:\n {2}build/);
+});
+
+/** Matches a stack frame line, e.g. `    at readProject (file:///lib/packagePlugin.mjs:1:1)`. */
+const STACK_FRAME_PATTERN = /^ {4}at /m;
+
+test('reports expected failures with a message and no stack trace', async (t) => {
+    const { directory, manifest } = await projectFixture(t);
+    const outside = await mkdtemp(path.join(tmpdir(), 'joplin-plugin-scripts-outside-'));
+    t.after(() => rm(outside, { recursive: true, force: true }));
+    const cases = [
+        [directory, { 'plugin.config.json': '{ "extraScripts": "editor.ts" }' }, /Error: .*"extraScripts" must be/],
+        [directory, { 'src/manifest.json': '{ not json' }, /Error: .*manifest\.json is not valid JSON/],
+        [
+            directory,
+            { 'src/index.ts': 'const = 1;' },
+            /ERROR[\s\S]*Error: Bundling failed; see the esbuild errors above/,
+        ],
+        [outside, {}, /Error: .*package\.json not found; run this command from the plugin project root/],
+    ];
+    for (const [cwd, files, expected] of /** @type {[string, Record<string, string>, RegExp][]} */ (cases)) {
+        // Each case starts from a valid project, so only its own file is broken.
+        await writeFiles(directory, {
+            'plugin.config.json': '{}',
+            'src/index.ts': '',
+            'src/manifest.json': JSON.stringify(manifest),
+            ...files,
+        });
+        const { status, stderr } = spawnSync(process.execPath, [cli, 'build'], { cwd, encoding: 'utf8' });
+        assert.equal(status, 1, stderr);
+        assert.match(stderr, expected);
+        assert.doesNotMatch(stderr, STACK_FRAME_PATTERN, stderr);
+    }
 });

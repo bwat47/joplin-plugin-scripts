@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { buildPlugin } from '../lib/build.mjs';
+import { PluginScriptsError } from '../lib/errors.mjs';
 import { updateApi } from '../lib/updateApi.mjs';
 import { updateVersion } from '../lib/updateVersion.mjs';
 
@@ -37,5 +38,11 @@ if (!run || rest.length > 0) {
     console.error(USAGE);
     process.exit(1);
 }
-// Unhandled rejections print the stack and exit non-zero, as the original scripts did.
-await run(process.cwd());
+try {
+    await run(process.cwd());
+} catch (error) {
+    // Expected failures print only their message; anything else is a bug, so its stack is shown.
+    if (!(error instanceof PluginScriptsError)) throw error;
+    console.error(`Error: ${error.message}`);
+    process.exitCode = 1;
+}
