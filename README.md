@@ -26,8 +26,12 @@ Commands run from the plugin project root, which npm scripts do automatically.
 
 - `build`: validates the project, clears `dist/` and `publish/`, copies runtime assets
   from `src/`, bundles, and writes `publish/<id>.jpl` and `<id>.json`.
-- `update-version`: increments the patch version across `package.json`,
-  `src/manifest.json`, and `package-lock.json`.
+- `update-version [patch|minor|major|<x.y.z>]`: updates the version across
+  `package.json`, `src/manifest.json`, and `package-lock.json`. With no argument it
+  increments the patch version; `minor` and `major` increment that part and reset the
+  parts after it (`1.3.7` → `1.4.0`); an explicit `x.y.z` version must be higher than
+  the current one. Pass the argument through npm with `--`, e.g.
+  `npm run updateVersion -- minor`.
 - `update-api`: replaces `api/` with the latest generator-joplin API, and warns if the
   category or content-script external lists here differ. Downloads generator-joplin
   directly from the registry in `npm_config_registry` (set by npm scripts), or

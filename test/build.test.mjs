@@ -210,3 +210,13 @@ test('reports expected failures with a message and no stack trace', async (t) =>
         assert.doesNotMatch(stderr, STACK_FRAME_PATTERN, stderr);
     }
 });
+
+test('passes an update-version argument through and rejects extra arguments', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'package-lock.json': JSON.stringify({ version: '1.2.3', packages: { '': { version: '1.2.3' } } }),
+    });
+    assert.match(runCli(directory, 'update-version', 'minor'), /Updated version to 1\.3\.0\./);
+    assert.throws(() => runCli(directory, 'update-version', 'minor', 'extra'), /Usage: joplin-plugin-scripts/);
+    assert.throws(() => runCli(directory, 'build', 'extra'), /Usage: joplin-plugin-scripts/);
+});
