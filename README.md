@@ -11,6 +11,7 @@ npm install -D @bwat47/joplin-plugin-scripts
 
 ```json
 "scripts": {
+    "typecheck": "tsc --noEmit",
     "dist": "npm run typecheck && joplin-plugin-scripts build",
     "updateVersion": "joplin-plugin-scripts update-version",
     "updateApi": "joplin-plugin-scripts update-api"
@@ -64,6 +65,80 @@ Script output paths must be unique after normalization. They are compared withou
 every platform, since the archive may be installed on a case-insensitive filesystem.
 `dist/index.js` is reserved for the main bundle. Invalid paths and collisions are rejected
 before existing build output is cleared.
+
+### Migrating from the standard Webpack setup
+
+#### Resolve the Joplin API through TypeScript paths
+
+The standard Webpack config aliases `api` to the project's `api/` directory. This
+package instead reads the mappings in `tsconfig.json`. Add these entries to your
+existing `compilerOptions` so imports such as `api` and `api/types` resolve for both
+TypeScript and esbuild:
+
+```json
+{
+    "compilerOptions": {
+        "paths": {
+            "api": ["./api/index.ts"],
+            "api/*": ["./api/*"]
+        }
+    }
+}
+```
+
+For TypeScript 6 and newer, use explicit `paths` mappings for these API imports
+regardless of which bundler you use: [`baseUrl` is deprecated in TypeScript 6](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-6-0.html#deprecated---baseurl).
+Remove `baseUrl` when migrating, and make any other path targets relative to the
+`tsconfig.json` that declares them. If other imports also rely on `baseUrl`, add
+explicit mappings for those too.
+
+Most existing Joplin plugins would need to add these mappings: the
+[standard plugin template](https://github.com/laurent22/joplin/blob/dev/packages/generator-joplin/generators/app/templates/tsconfig.json)
+uses `baseUrl: "."` without `paths`, and existing generated projects commonly use an
+older TypeScript version. The mappings are therefore part of migrating to modern
+TypeScript as well as configuring this build package.
+
+#### Run type checking separately
+
+The standard Webpack setup uses `ts-loader` to compile and check TypeScript.
+esbuild transpiles and bundles TypeScript without checking types, so
+`joplin-plugin-scripts build` alone can succeed even when the source has type errors.
+Keep the separate `typecheck` step shown in the usage example. `tsc --noEmit` checks
+the project without writing JavaScript into `dist/`.
+
+When comparing build times, compare the complete `dist` commands so both include
+type checking.
+
+#### Translate Webpack overrides to esbuild options
+
+`webpackOverrides` is not supported. Replace it in `plugin.config.json` with
+equivalent esbuild options under `mainBuildOptions`. For example, Webpack's
+`devtool: "source-map"` and `optimization.minimize: false` become:
+
+```json
+{
+    "mainBuildOptions": {
+        "sourcemap": true,
+        "minify": false
+    }
+}
+```
+
+| Webpack setting         | esbuild equivalent                                     |
+| ----------------------- | ------------------------------------------------------ |
+| `resolve.alias`         | `mainBuildOptions.alias`, or suitable tsconfig `paths` |
+| `devtool`               | `mainBuildOptions.sourcemap`                           |
+| `optimization.minimize` | `mainBuildOptions.minify`                              |
+| `externals`             | `mainBuildOptions.external`, using esbuild's syntax    |
+| Loaders and plugins     | Require an equivalent approach; they cannot be reused  |
+
+External dependencies remain runtime imports and must be available in Joplin's
+plugin runtime; marking a package external does not include it in the archive.
+
+The standard setup applies `webpackOverrides` to both main and content-script
+builds. Here, `mainBuildOptions` affects only the main bundle; content scripts and
+webview scripts use the fixed options described above. Review any customizations
+that previously affected those scripts before migrating.
 
 ### Testing a plugin's bundles
 
