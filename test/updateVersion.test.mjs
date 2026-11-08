@@ -23,10 +23,10 @@ test('bumps package, manifest, and both lockfile versions together', async (t) =
 
 test('version bumps change only the version in hand-formatted package.json and manifest', async (t) => {
     const { directory } = await projectFixture(t);
-    const manifestText = (version) =>
+    const manifestText = (/** @type {string} */ version) =>
         `{\n    "manifest_version": 1,\n    "id": "test.plugin",\n    "version": "${version}",\n` +
         `    "categories": ["productivity", "editor"],\n    "promo_tile": {\n        "src": "promo.png"\n    }\n}\n`;
-    const packageText = (version) =>
+    const packageText = (/** @type {string} */ version) =>
         `{\n    "name": "joplin-plugin-test",\n    "version": "${version}",\n` +
         `    "keywords": [\n        "joplin-plugin"\n    ],\n    "devDependencies": { "dep": "1.2.3" }\n}\n`;
     await writeFile(path.join(directory, 'src/manifest.json'), manifestText('1.2.3'));

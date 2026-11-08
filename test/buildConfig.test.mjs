@@ -52,7 +52,8 @@ test('reads an optional plugin config with defaults', async (t) => {
 test('explains a malformed plugin config', async (t) => {
     const { directory } = await projectFixture(t);
     const configPath = path.join(directory, 'plugin.config.json');
-    for (const [text, message] of [
+    /** @type {[string, RegExp][]} */
+    const cases = [
         ['{', /Could not read .*plugin\.config\.json/],
         ['[]', /must contain a JSON object/],
         [JSON.stringify({ extraScript: [] }), /unknown keys: extraScript/],
@@ -61,7 +62,8 @@ test('explains a malformed plugin config', async (t) => {
         [JSON.stringify({ extraScripts: ['a.ts'], webviewScripts: ['a.js'] }), /more than one script .*dist\/a\.js/],
         [JSON.stringify({ mainBuildOptions: [] }), /"mainBuildOptions" must be an object/],
         [JSON.stringify({ mainBuildOptions: { outfile: 'x.js' } }), /cannot set outfile/],
-    ]) {
+    ];
+    for (const [text, message] of cases) {
         await writeFile(configPath, text);
         await assert.rejects(readPluginConfig(directory), message, text);
     }

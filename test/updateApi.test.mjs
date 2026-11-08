@@ -8,7 +8,12 @@ import { contentScriptExternals } from '../lib/buildConfig.mjs';
 import { VALID_CATEGORIES } from '../lib/packagePlugin.mjs';
 import { compareGeneratorLists, replaceApi } from '../lib/updateApi.mjs';
 
-/** Builds text shaped like generator-joplin's webpack.config.js lists. */
+/**
+ * Builds text shaped like generator-joplin's webpack.config.js lists.
+ * @param {string[]} categories
+ * @param {string[]} externals
+ * @returns {string}
+ */
 function generatorWebpackConfig(categories, externals) {
     const categoryEntries = categories.map((name) => `{'name':'${name}'}`).join(',');
     const externalEntries = externals.map((name) => `\t'${name}',\n`).join('');
@@ -37,6 +42,11 @@ test('warns when the generator lists cannot be found', () => {
     assert.ok(warnings.every((warning) => /Could not find/.test(warning)));
 });
 
+/**
+ * Creates an API fixture removed when the test ends.
+ * @param {import('node:test').TestContext} t
+ * @returns {Promise<string>}
+ */
 async function apiFixture(t) {
     const directory = await mkdtemp(path.join(tmpdir(), 'joplin-plugin-scripts-api-'));
     t.after(() => rm(directory, { recursive: true, force: true }));
@@ -65,6 +75,7 @@ test('leaves api/ unchanged when the generator API is missing or cannot be copie
     await mkdir(source);
     await writeFile(path.join(source, 'index.ts'), 'new');
     // Fail after part of the new API has been written to staging.
+    /** @type {import('../lib/updateApi.mjs').CopyDirectory} */
     const failingCopy = async (from, to) => {
         await writeFile(path.join(to, 'index.ts'), 'partial');
         throw new Error('copy failed');

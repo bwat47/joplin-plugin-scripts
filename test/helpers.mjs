@@ -6,6 +6,8 @@ import { list } from 'tar';
 /**
  * Creates a temporary plugin project with matching package.json and manifest versions and a
  * prebuilt `dist/`. The directory is removed when the test ends.
+ * @param {import('node:test').TestContext} t
+ * @returns {Promise<{ directory: string, manifest: { id: string, version: string, categories: string[] } }>}
  */
 export async function projectFixture(t) {
     const directory = await mkdtemp(path.join(tmpdir(), 'joplin-plugin-scripts-'));
@@ -23,7 +25,11 @@ export async function projectFixture(t) {
     return { directory, manifest };
 }
 
-/** Writes `files` (relative path to contents) under `directory`, creating parent directories. */
+/**
+ * Writes `files` (relative path to contents) under `directory`, creating parent directories.
+ * @param {string} directory
+ * @param {{ [path: string]: string }} files
+ */
 export async function writeFiles(directory, files) {
     for (const [relative, contents] of Object.entries(files)) {
         const filePath = path.join(directory, relative);
@@ -32,8 +38,13 @@ export async function writeFiles(directory, files) {
     }
 }
 
-/** Returns the sorted entry paths of a tar archive. */
+/**
+ * Returns the sorted entry paths of a tar archive.
+ * @param {string} file
+ * @returns {Promise<string[]>}
+ */
 export async function archiveEntries(file) {
+    /** @type {string[]} */
     const entries = [];
     await list({ file, onReadEntry: (entry) => entries.push(entry.path) });
     return entries.sort();

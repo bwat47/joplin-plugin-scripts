@@ -81,6 +81,7 @@ const result = await build({ ...createBuildOptions(root, mainBuildOptions), writ
 
 ```sh
 npm test
+npm run typecheck
 npm run lint
 npm run format
 ```
@@ -88,5 +89,10 @@ npm run format
 To try a change in a plugin before publishing, run `npm pack` here and
 `npm install -D ../joplin-plugin-scripts/bwat47-joplin-plugin-scripts-<version>.tgz` in the plugin.
 
-Release: bump `version`, then `npm publish --access public` (`prepublishOnly` runs lint,
-format check, and tests).
+JavaScript in `lib/`, `bin/`, and `test/` is checked with TypeScript in strict mode using
+JSDoc annotations. Type checking emits no files; the scripts still run directly in Node.
+`npm run build:types` generates `.d.mts` declarations for `lib/` into `types/` (git-ignored), so
+plugins importing the public API get types; `npm pack` and `npm publish` run it via `prepack`.
+
+Release: bump `version`, then `npm publish --access public` (`prepublishOnly` runs type checking,
+lint, format check, and tests; `prepack` then generates the declarations).

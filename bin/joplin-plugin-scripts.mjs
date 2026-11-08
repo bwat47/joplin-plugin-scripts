@@ -12,6 +12,7 @@ Commands:
   update-version  Increment the patch version in package.json, src/manifest.json, and package-lock.json
   update-api      Replace api/ with the declarations from the latest generator-joplin`;
 
+/** @type {Record<string, (root: string) => Promise<void>>} */
 const commands = {
     build: async (root) => {
         await buildPlugin(root);

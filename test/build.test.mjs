@@ -10,6 +10,12 @@ import { archiveEntries, projectFixture, writeFiles } from './helpers.mjs';
 
 const cli = fileURLToPath(new URL('../bin/joplin-plugin-scripts.mjs', import.meta.url));
 
+/**
+ * Runs the CLI in a fixture project.
+ * @param {string} cwd
+ * @param {...string} args
+ * @returns {string}
+ */
 function runCli(cwd, ...args) {
     return execFileSync(process.execPath, [cli, ...args], { cwd, stdio: 'pipe', encoding: 'utf8' });
 }
@@ -38,12 +44,18 @@ test('builds and packages a plugin with an extra script, runtime assets, and mai
     const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
     assert.deepEqual(entries, ['contentScripts/editor.js', 'index.js', 'manifest.json', 'styles.css']);
 
+    /** @type {string[]} */
     const requires = [];
     let registered = false;
     // eslint-disable-next-line sonarjs/code-eval -- Executes only the bundle this test just built, with a controlled host stub.
     runInNewContext(await readFile(path.join(directory, 'dist/index.js'), 'utf8'), {
-        joplin: { plugins: { register: (plugin) => (registered = typeof plugin.onStart === 'function') } },
-        require: (name) => requires.push(name) && { sep: '/' },
+        joplin: {
+            plugins: {
+                register: (/** @type {{ onStart?: unknown }} */ plugin) =>
+                    (registered = typeof plugin.onStart === 'function'),
+            },
+        },
+        require: (/** @type {string} */ name) => requires.push(name) && { sep: '/' },
     });
     assert.equal(registered, true);
     // Node built-ins keep the bare names Joplin's plugin runtime expects.
@@ -73,6 +85,7 @@ test('builds webview scripts that run as plain scripts without module, exports, 
     const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
     assert.deepEqual(entries, ['dialog/dialog.js', 'index.js', 'manifest.json']);
     // A dialog's <script> context: globals only, no CommonJS bindings.
+    /** @type {{ initialized?: string }} */
     const window = {};
     // eslint-disable-next-line sonarjs/code-eval -- Executes only the bundle this test just built, with a controlled host stub.
     runInNewContext(await readFile(path.join(directory, 'dist/dialog/dialog.js'), 'utf8'), { window });

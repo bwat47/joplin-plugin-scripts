@@ -32,7 +32,7 @@ test('packages the runtime files at archive root, without dotfiles, with matchin
 test('records the main branch for a detached HEAD in publish metadata', async (t) => {
     const { directory, manifest } = await projectFixture(t);
     const commit = 'a'.repeat(40);
-    t.mock.method(childProcess, 'execFileSync', (command, args) => {
+    t.mock.method(childProcess, 'execFileSync', (/** @type {string} */ command, /** @type {string[]} */ args) => {
         assert.equal(command, 'git');
         return Buffer.from(args.includes('--abbrev-ref') ? 'HEAD\n' : `${commit}\n`);
     });
