@@ -40,13 +40,20 @@ Commands run from the plugin project root, which npm scripts do automatically.
 ```json
 {
     "extraScripts": ["contentScripts/codeMirror.ts"],
+    "webviewScripts": ["dialog/dialog.ts"],
     "mainBuildOptions": { "external": ["jsdom"] }
 }
 ```
 
-- `extraScripts`: content scripts relative to `src/`, bundled for the browser to the same
-  path under `dist/` with a `.js` extension. Joplin's CodeMirror and Lezer packages stay
-  external so they share the host's instances.
+- `extraScripts`: content scripts registered with `joplin.contentScripts.register`
+  (CodeMirror and Markdown-it plugins), relative to `src/`. Each is bundled for the browser
+  as CommonJS to the same path under `dist/` with a `.js` extension. Joplin's CodeMirror
+  and Lezer packages stay external so they share the host's instances.
+- `webviewScripts`: scripts loaded into a dialog or panel with `addScript`, relative to
+  `src/`. A webview loads them as plain `<script>` tags with no `module`, `exports`, or
+  `require`, so each is bundled as a self-contained IIFE with nothing external. Exports
+  are dropped, so the script must start itself, e.g. by calling its init function at the
+  top level. Plain `.js` files in `src/` are copied as-is and don't need listing.
 - `mainBuildOptions`: esbuild options merged over the main bundle's defaults. Relative
   `alias` targets resolve from the project root. `absWorkingDir`, `entryPoints`,
   `outfile`, and `outdir` cannot be overridden.
@@ -63,7 +70,7 @@ const { mainBuildOptions } = await readPluginConfig(root);
 const result = await build({ ...createBuildOptions(root, mainBuildOptions), write: false });
 ```
 
-`contentScriptExternals` is also exported.
+`createWebviewScriptBuildOptions` and `contentScriptExternals` are also exported.
 
 ## Development
 

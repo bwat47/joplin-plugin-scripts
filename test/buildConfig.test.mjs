@@ -35,15 +35,18 @@ test('copies runtime assets while excluding TypeScript, tests, and fixtures', ()
 
 test('reads an optional plugin config with defaults', async (t) => {
     const { directory } = await projectFixture(t);
-    assert.deepEqual(await readPluginConfig(directory), { extraScripts: [], mainBuildOptions: {} });
-    await writeFile(
-        path.join(directory, 'plugin.config.json'),
-        JSON.stringify({ extraScripts: ['contentScripts/a.ts'], mainBuildOptions: { external: ['jsdom'] } })
-    );
     assert.deepEqual(await readPluginConfig(directory), {
-        extraScripts: ['contentScripts/a.ts'],
-        mainBuildOptions: { external: ['jsdom'] },
+        extraScripts: [],
+        webviewScripts: [],
+        mainBuildOptions: {},
     });
+    const config = {
+        extraScripts: ['contentScripts/a.ts'],
+        webviewScripts: ['dialog/b.ts'],
+        mainBuildOptions: { external: ['jsdom'] },
+    };
+    await writeFile(path.join(directory, 'plugin.config.json'), JSON.stringify(config));
+    assert.deepEqual(await readPluginConfig(directory), config);
 });
 
 test('explains a malformed plugin config', async (t) => {
@@ -54,6 +57,8 @@ test('explains a malformed plugin config', async (t) => {
         ['[]', /must contain a JSON object/],
         [JSON.stringify({ extraScript: [] }), /unknown keys: extraScript/],
         [JSON.stringify({ extraScripts: 'contentScripts/a.ts' }), /"extraScripts" must be an array/],
+        [JSON.stringify({ webviewScripts: [1] }), /"webviewScripts" must be an array/],
+        [JSON.stringify({ extraScripts: ['a.ts'], webviewScripts: ['a.js'] }), /more than one script .*dist\/a\.js/],
         [JSON.stringify({ mainBuildOptions: [] }), /"mainBuildOptions" must be an object/],
         [JSON.stringify({ mainBuildOptions: { outfile: 'x.js' } }), /cannot set outfile/],
     ]) {

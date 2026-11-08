@@ -53,6 +53,32 @@ test('builds and packages a plugin with an extra script, runtime assets, and mai
     assert.match(contentScript, /require\("@codemirror\/view"\)/);
 });
 
+test('builds webview scripts that run as plain scripts without module, exports, or require', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({ webviewScripts: ['dialog/dialog.ts'] }),
+        'src/index.ts':
+            'declare const joplin: { plugins: { register(p: object): void } };\n' +
+            'joplin.plugins.register({ onStart: async () => undefined });\n',
+        'src/dialog/dialog.ts':
+            "import { label } from './label';\n" +
+            'declare const window: { initialized: string };\n' +
+            'export function initialize(): void { window.initialized = label; }\n' +
+            'initialize();\n' +
+            'export default initialize;\n',
+        'src/dialog/label.ts': "export const label = 'ready';\n",
+    });
+    runCli(directory, 'build');
+
+    const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+    assert.deepEqual(entries, ['dialog/dialog.js', 'index.js', 'manifest.json']);
+    // A dialog's <script> context: globals only, no CommonJS bindings.
+    const window = {};
+    // eslint-disable-next-line sonarjs/code-eval -- Executes only the bundle this test just built, with a controlled host stub.
+    runInNewContext(await readFile(path.join(directory, 'dist/dialog/dialog.js'), 'utf8'), { window });
+    assert.equal(window.initialized, 'ready');
+});
+
 test('fails the build before clearing output when the project is invalid', async (t) => {
     const { directory } = await projectFixture(t);
     await writeFiles(directory, { 'plugin.config.json': '{ "extraScripts": "editor.ts" }' });
