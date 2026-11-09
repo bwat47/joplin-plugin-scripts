@@ -57,6 +57,7 @@ overrides build options:
 {
     "extraScripts": ["contentScripts/codeMirror.ts"],
     "webviewScripts": ["dialog/dialog.ts"],
+    "buildOptions": { "target": "es2015" },
     "mainBuildOptions": { "external": ["jsdom"] },
     "contentScriptBuildOptions": { "sourcemap": "inline" },
     "webviewScriptBuildOptions": { "minify": false }
@@ -78,20 +79,23 @@ reserved for the main bundle.
 
 ### Build options
 
-`mainBuildOptions`, `contentScriptBuildOptions`, and `webviewScriptBuildOptions` merge
-esbuild options over the defaults for the main bundle, every content script, and every
-webview script, respectively. Every bundle is minified, targets ES2020, and defines
+`buildOptions` merges esbuild options over the defaults for every bundle.
+`mainBuildOptions`, `contentScriptBuildOptions`, and `webviewScriptBuildOptions` then merge
+over that for the main bundle, every content script, and every webview script, respectively,
+so a bundle type's own option wins over the shared one. `buildOptions` cannot set `platform`
+or `external`, which only some bundle types may set. Every bundle is minified, targets ES2020, and defines
 `process.env.NODE_ENV` as `"production"`. The main bundle and content scripts are
 CommonJS; webview scripts are IIFEs.
 
 - `target`: the standard joplin plugin generator [targets ES2015](https://github.com/laurent22/joplin/blob/dev/packages/generator-joplin/generators/app/templates/tsconfig.json).
-  To support older runtimes, override `target` for each bundle type (e.g. `"es2015"`).
+  To support older runtimes, set `target` in `buildOptions` (e.g. `"es2015"`).
   The build ignores `compilerOptions.target` in `tsconfig.json`. The
   [esbuild target](https://esbuild.github.io/api/#target) controls emitted syntax only; it
   does not polyfill newer APIs such as `Object.fromEntries`, so test on the Joplin versions
   and platforms you support.
 - `alias`: relative targets resolve from the project root.
-- `define`: entries merge individually, so `process.env.NODE_ENV` stays `"production"`
+- `define`: entries merge individually across the defaults, `buildOptions`, and each bundle
+  type's options, so `process.env.NODE_ENV` stays `"production"`
   unless overridden.
 - `external`: content-script entries extend the CodeMirror and Lezer externals, which
   cannot be removed. Webview scripts cannot set `external`, because they have no runtime
@@ -129,27 +133,27 @@ mappings for any other imports that relied on `baseUrl`.
 
 The generator's `tsconfig.json` sets `"target": "ES2015"`, while this build emits ES2020 by default
 (see [Build options](#build-options)). To keep type checking in line with what ships, set
-`compilerOptions.target` to `"ES2020"`, or lower each bundle type's build `target` to match.
+`compilerOptions.target` to `"ES2020"`, or lower the build `target` in `buildOptions` to match.
 
 ### Translate Webpack overrides to esbuild options
 
 `webpackOverrides` is not supported. Replace it in `plugin.config.json` with
 equivalent esbuild options:
 
-| Webpack setting         | esbuild equivalent                                     |
-| ----------------------- | ------------------------------------------------------ |
-| `resolve.alias`         | `mainBuildOptions.alias`, or suitable tsconfig `paths` |
-| `devtool`               | `mainBuildOptions.sourcemap`                           |
-| `optimization.minimize` | `mainBuildOptions.minify`                              |
-| `externals`             | `mainBuildOptions.external`, using esbuild's syntax    |
-| Loaders and plugins     | Require an equivalent approach; they cannot be reused  |
+| Webpack setting         | esbuild equivalent                                    |
+| ----------------------- | ----------------------------------------------------- |
+| `resolve.alias`         | `buildOptions.alias`, or suitable tsconfig `paths`    |
+| `devtool`               | `buildOptions.sourcemap`                              |
+| `optimization.minimize` | `buildOptions.minify`                                 |
+| `externals`             | `mainBuildOptions.external`, using esbuild's syntax   |
+| Loaders and plugins     | Require an equivalent approach; they cannot be reused |
 
 External packages remain runtime imports and are not included in the archive, so they
 must be available in Joplin's plugin runtime.
 
-The standard setup applies `webpackOverrides` to both main and content-script
-builds. Here, `mainBuildOptions` affects only the main bundle. Move settings that
-should also apply to content scripts into `contentScriptBuildOptions`.
+`buildOptions` applies to every bundle. Use a bundle type's own options for settings
+that should apply only to that type. For content-script externals, use
+`contentScriptBuildOptions.external`; webview scripts cannot set externals.
 
 ## Testing a plugin's bundles
 

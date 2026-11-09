@@ -100,7 +100,7 @@ test('explains a malformed plugin config', async (t) => {
 test('rejects options that would leave runtime requires in any bundle', async (t) => {
     const { directory } = await projectFixture(t);
     const configPath = path.join(directory, 'plugin.config.json');
-    for (const key of ['mainBuildOptions', 'contentScriptBuildOptions', 'webviewScriptBuildOptions']) {
+    for (const key of ['buildOptions', 'mainBuildOptions', 'contentScriptBuildOptions', 'webviewScriptBuildOptions']) {
         for (const [option, value] of /** @type {[string, unknown][]} */ ([
             ['bundle', false],
             ['packages', 'external'],
@@ -109,6 +109,58 @@ test('rejects options that would leave runtime requires in any bundle', async (t
             await writeFile(configPath, text);
             await assert.rejects(readPluginConfig(directory), new RegExp(`"${key}" cannot set ${option}\\.`), text);
         }
+    }
+});
+
+test('merges shared build options under each bundle type, merging definitions individually', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFile(
+        path.join(directory, 'plugin.config.json'),
+        JSON.stringify({
+            buildOptions: { target: 'es2015', sourcemap: 'inline', define: { __SHARED__: '1', __LABEL__: '"shared"' } },
+            mainBuildOptions: { external: ['jsdom'] },
+            contentScriptBuildOptions: { target: 'es2017' },
+            webviewScriptBuildOptions: { define: { __LABEL__: '"webview"' } },
+        })
+    );
+    const config = await readPluginConfig(directory);
+    assert.deepEqual(config.mainBuildOptions, {
+        target: 'es2015',
+        sourcemap: 'inline',
+        define: { __SHARED__: '1', __LABEL__: '"shared"' },
+        external: ['jsdom'],
+    });
+    assert.deepEqual(config.contentScriptBuildOptions, {
+        target: 'es2017',
+        sourcemap: 'inline',
+        define: { __SHARED__: '1', __LABEL__: '"shared"' },
+    });
+    assert.deepEqual(config.webviewScriptBuildOptions, {
+        target: 'es2015',
+        sourcemap: 'inline',
+        define: { __SHARED__: '1', __LABEL__: '"webview"' },
+    });
+    assert.deepEqual(createBuildOptions(root, config.mainBuildOptions).define, {
+        'process.env.NODE_ENV': '"production"',
+        __SHARED__: '1',
+        __LABEL__: '"shared"',
+    });
+    assert.equal(createWebviewScriptBuildOptions(root, 'dialog.ts', config.webviewScriptBuildOptions).target, 'es2015');
+});
+
+test('rejects shared build options that some bundle type may not set', async (t) => {
+    const { directory } = await projectFixture(t);
+    const configPath = path.join(directory, 'plugin.config.json');
+    for (const [options, message] of /** @type {[object, RegExp][]} */ ([
+        [[], /"buildOptions" must be an object/],
+        [{ platform: 'node' }, /"buildOptions" cannot set platform\./],
+        [{ external: ['jsdom'] }, /"buildOptions" cannot set external\./],
+        [{ outfile: 'x.js' }, /"buildOptions" cannot set outfile\./],
+        [{ define: { A: 1 } }, /"buildOptions\.define" must be an object of string replacements/],
+    ])) {
+        const text = JSON.stringify({ buildOptions: options });
+        await writeFile(configPath, text);
+        await assert.rejects(readPluginConfig(directory), message, text);
     }
 });
 

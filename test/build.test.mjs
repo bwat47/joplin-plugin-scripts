@@ -125,6 +125,30 @@ test('applies content-script and webview-script build options only to their own 
     assert.equal(window.label, 'from-config');
 });
 
+test("applies shared build options to every bundle, below each bundle type's own options", async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({
+            extraScripts: ['contentScripts/editor.ts'],
+            webviewScripts: ['dialog/dialog.ts'],
+            buildOptions: { target: 'es2015' },
+            contentScriptBuildOptions: { target: 'es2020' },
+        }),
+        'src/index.ts': 'export const value = (a?: { b: number }) => a?.b;\n',
+        'src/contentScripts/editor.ts': 'export default (a?: { b: number }) => a?.b;\n',
+        'src/dialog/dialog.ts':
+            'declare const window: { value?: number };\n' +
+            'const read = (a?: { b: number }) => a?.b;\n' +
+            'window.value = read({ b: 1 });\n',
+    });
+    runCli(directory, 'build');
+
+    // es2015 lowers optional chaining; es2020 keeps it.
+    assert.doesNotMatch(await readFile(path.join(directory, 'dist/index.js'), 'utf8'), /\?\./);
+    assert.doesNotMatch(await readFile(path.join(directory, 'dist/dialog/dialog.js'), 'utf8'), /\?\./);
+    assert.match(await readFile(path.join(directory, 'dist/contentScripts/editor.js'), 'utf8'), /\?\./);
+});
+
 test('rejects an unbundled webview script before building it with runtime requires', async (t) => {
     const { directory } = await projectFixture(t);
     // Unbundled, esbuild would build this as an IIFE calling require('./label'), which a webview lacks.
