@@ -176,6 +176,59 @@ test('merges main build overrides over the defaults', () => {
     assert.equal(options.outfile, 'dist/index.js');
 });
 
+test('keeps the root, entry, output, bundling, format, and plugins fixed for direct callers', () => {
+    /** @type {import('esbuild').BuildOptions} */
+    const overrides = {
+        absWorkingDir: '/elsewhere',
+        entryPoints: ['other.ts'],
+        outfile: 'other.js',
+        bundle: false,
+        format: 'esm',
+        plugins: [],
+        platform: 'neutral',
+        external: ['x'],
+    };
+    const main = createBuildOptions(root, overrides);
+    assert.equal(main.absWorkingDir, root);
+    assert.deepEqual(main.entryPoints, ['src/index.ts']);
+    assert.equal(main.outfile, 'dist/index.js');
+    assert.equal(main.bundle, true);
+    assert.equal(main.format, 'cjs');
+    assert.equal(main.plugins?.[0]?.name, 'strip-node-prefix');
+    // The main bundle may change its platform and externals.
+    assert.equal(main.platform, 'neutral');
+    assert.deepEqual(main.external, ['x']);
+
+    const contentScript = createContentScriptBuildOptions(root, 'cs.ts', overrides);
+    assert.equal(contentScript.outfile, 'dist/cs.js');
+    assert.equal(contentScript.bundle, true);
+    assert.equal(contentScript.format, 'cjs');
+    assert.equal(contentScript.platform, 'browser');
+
+    const webview = createWebviewScriptBuildOptions(root, 'dialog.ts', overrides);
+    assert.equal(webview.outfile, 'dist/dialog.js');
+    assert.equal(webview.format, 'iife');
+    assert.equal(webview.platform, 'browser');
+    assert.deepEqual(webview.external, []);
+});
+
+test('keeps a __proto__ definition from the plugin config through every merge', async (t) => {
+    const { directory } = await projectFixture(t);
+    // Written as raw JSON: an object literal's __proto__ key would set its prototype instead.
+    await writeFile(
+        path.join(directory, 'plugin.config.json'),
+        '{ "buildOptions": { "define": { "__proto__": "123" } }, "mainBuildOptions": { "define": { "A": "1" } } }'
+    );
+    const { mainBuildOptions } = await readPluginConfig(directory);
+    const { define } = createBuildOptions(root, mainBuildOptions);
+    assert.ok(define && Object.hasOwn(define, '__proto__'));
+    assert.deepEqual(Object.entries(define), [
+        ['process.env.NODE_ENV', '"production"'],
+        ['__proto__', '123'],
+        ['A', '1'],
+    ]);
+});
+
 test('preserves default definitions when adding custom definitions and allows explicit overrides', () => {
     const options = createBuildOptions(root, { define: { __DEBUG__: 'false' } });
     assert.deepEqual(options.define, {
@@ -221,7 +274,7 @@ test('maps content scripts to dist and rejects paths outside src', () => {
     const options = createContentScriptBuildOptions(root, 'contentScripts/codeMirror.ts');
     assert.deepEqual(options.entryPoints, ['src/contentScripts/codeMirror.ts']);
     assert.equal(options.outfile, 'dist/contentScripts/codeMirror.js');
-    assert.equal(options.platform, undefined);
+    assert.equal(options.platform, 'browser');
     for (const script of ['../outside.ts', path.resolve('/abs.ts'), 'styles.css']) {
         assert.throws(() => createContentScriptBuildOptions(root, script), /Invalid extra script path/, script);
     }

@@ -171,6 +171,11 @@ const result = await build({ ...createBuildOptions(root, mainBuildOptions), writ
 Also exported: `createContentScriptBuildOptions`, `createWebviewScriptBuildOptions`,
 `contentScriptExternals`, and `PluginScriptsError` for expected configuration and validation errors.
 
+The `create*BuildOptions` functions always keep their own entry point, output file, format, and
+bundling, and the main bundle keeps its `node:` import rewrite. They do not check the other
+reserved options, which `readPluginConfig` rejects, so options such as `write: false` can be
+passed for in-memory builds.
+
 ## Development
 
 ```sh
