@@ -88,6 +88,17 @@ test('explains a malformed plugin config', async (t) => {
             JSON.stringify({ webviewScriptBuildOptions: { define: { A: 1 } } }),
             /"webviewScriptBuildOptions\.define" must/,
         ],
+        [JSON.stringify({ mainBuildOptions: { alias: 'x' } }), /"mainBuildOptions\.alias" must be an object of string/],
+        [JSON.stringify({ mainBuildOptions: { loader: { '.svg': 1 } } }), /"mainBuildOptions\.loader" must be/],
+        [JSON.stringify({ contentScriptBuildOptions: { banner: ['x'] } }), /"contentScriptBuildOptions\.banner" must/],
+        [
+            JSON.stringify({ webviewScriptBuildOptions: { footer: { js: true } } }),
+            /"webviewScriptBuildOptions\.footer"/,
+        ],
+        [
+            JSON.stringify({ mainBuildOptions: { supported: { bigint: 'yes' } } }),
+            /"mainBuildOptions\.supported" must be an object of boolean values/,
+        ],
         [JSON.stringify({ webviewScriptBuildOptions: { external: ['x'] } }), /cannot set external/],
         [JSON.stringify({ webviewScriptBuildOptions: { outfile: 'x.js' } }), /cannot set outfile/],
     ];
@@ -148,6 +159,42 @@ test('merges shared build options under each bundle type, merging definitions in
     assert.equal(createWebviewScriptBuildOptions(root, 'dialog.ts', config.webviewScriptBuildOptions).target, 'es2015');
 });
 
+test('merges map-style build options entry by entry and replaces arrays', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFile(
+        path.join(directory, 'plugin.config.json'),
+        JSON.stringify({
+            buildOptions: {
+                alias: { '@lib': './src/lib', '@shared': './src/shared' },
+                loader: { '.svg': 'text' },
+                banner: { js: '/* shared */' },
+                footer: { js: '/* end */' },
+                supported: { bigint: true },
+                resolveExtensions: ['.ts', '.js'],
+            },
+            mainBuildOptions: {
+                alias: { '@shared': './src/main-shared' },
+                loader: { '.png': 'dataurl' },
+                banner: { css: '/* main css */' },
+                supported: { 'top-level-await': false },
+                resolveExtensions: ['.tsx'],
+            },
+        })
+    );
+    const config = await readPluginConfig(directory);
+    const main = createBuildOptions(root, config.mainBuildOptions);
+    assert.deepEqual(main.alias, { '@lib': './src/lib', '@shared': './src/main-shared' });
+    assert.deepEqual(main.loader, { '.svg': 'text', '.png': 'dataurl' });
+    assert.deepEqual(main.banner, { js: '/* shared */', css: '/* main css */' });
+    assert.deepEqual(main.footer, { js: '/* end */' });
+    assert.deepEqual(main.supported, { bigint: true, 'top-level-await': false });
+    assert.deepEqual(main.resolveExtensions, ['.tsx']);
+    const contentScript = createContentScriptBuildOptions(root, 'a.ts', config.contentScriptBuildOptions);
+    assert.deepEqual(contentScript.alias, { '@lib': './src/lib', '@shared': './src/shared' });
+    assert.deepEqual(contentScript.resolveExtensions, ['.ts', '.js']);
+    assert.equal(createBuildOptions(root).alias, undefined);
+});
+
 test('rejects shared build options that some bundle type may not set', async (t) => {
     const { directory } = await projectFixture(t);
     const configPath = path.join(directory, 'plugin.config.json');
@@ -157,6 +204,7 @@ test('rejects shared build options that some bundle type may not set', async (t)
         [{ external: ['jsdom'] }, /"buildOptions" cannot set external\./],
         [{ outfile: 'x.js' }, /"buildOptions" cannot set outfile\./],
         [{ define: { A: 1 } }, /"buildOptions\.define" must be an object of string replacements/],
+        [{ alias: { '@lib': 1 } }, /"buildOptions\.alias" must be an object of string values/],
     ])) {
         const text = JSON.stringify({ buildOptions: options });
         await writeFile(configPath, text);

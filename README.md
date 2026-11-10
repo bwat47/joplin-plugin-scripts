@@ -106,14 +106,18 @@ Restrictions for individual bundle types are described below.
   does not polyfill newer APIs such as `Object.fromEntries`, so test on the Joplin versions
   and platforms you support.
 - `alias`: relative targets resolve from the project root.
-- `define`: entries merge individually across the defaults, `buildOptions`, and each bundle
-  type's options, so `process.env.NODE_ENV` stays `"production"`
-  unless overridden.
+- `define`: `process.env.NODE_ENV` stays `"production"` unless overridden, because
+  `define` entries merge (see below).
 - `external`: content-script entries extend the CodeMirror and Lezer externals, which
   cannot be removed. Webview scripts cannot set `external`, because they have no runtime
   `require`.
 - `sourcemap`: for debugging, prefer `"inline"`. Setting it to `true` writes `.js.map`
   files into `dist/` that ship in the `.jpl`.
+
+Map-style options (`define`, `alias`, `loader`, `banner`, `footer`, and `supported`) merge
+entry by entry across the defaults, `buildOptions`, and each bundle type's options, so a bundle
+type can add or override entries without dropping the shared ones. An inherited entry can be
+replaced but not removed. All other options, including arrays, replace the shared value.
 
 Options that control inputs, outputs, and bundling mode (such as `entryPoints`, `outfile`,
 `format`, `plugins`, and `bundle`) are reserved. Content and webview scripts also cannot
