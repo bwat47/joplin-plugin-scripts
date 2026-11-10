@@ -33,7 +33,7 @@ Commands run from the plugin project root, which npm scripts do automatically.
 - `build`: validates the project, clears `dist/` and `publish/`, copies runtime assets
   from `src/`, bundles, and writes `publish/<id>.jpl` and `<id>.json`.
 - `update-version [patch|minor|major|<x.y.z>]`: updates the version across
-  `package.json`, `src/manifest.json`, and `package-lock.json`. With no argument it
+  `package.json`, `src/manifest.json`, and `package-lock.json` (if present). With no argument it
   increments the patch version; `minor` and `major` increment that part and reset the
   parts after it (`1.3.7` → `1.4.0`); an explicit `x.y.z` version must be higher than
   the current one. Pass the argument through npm with `--`, e.g.

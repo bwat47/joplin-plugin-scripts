@@ -11,7 +11,7 @@ Run from a Joplin plugin project root (npm scripts do this automatically).
 Commands:
   build           Bundle the plugin with esbuild and create publish/<id>.jpl
   update-version [patch|minor|major|<x.y.z>]
-                  Update the version in package.json, src/manifest.json, and package-lock.json:
+                  Update the version in package.json, src/manifest.json, and package-lock.json (if present):
                   increment the patch (default), minor, or major part, or set an explicit higher version
   update-api      Replace api/ with the declarations from the latest generator-joplin`;
 

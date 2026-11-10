@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 
@@ -84,6 +84,28 @@ test('version bumps explain a lockfile without a root entry or out of sync, and 
         await writeFile(lockPath, JSON.stringify(lock));
         await assert.rejects(updateVersion(directory), message);
         assert.equal(await readFile(lockPath, 'utf8'), JSON.stringify(lock));
+        assert.equal(await readFile(path.join(directory, 'package.json'), 'utf8'), packageText);
+    }
+});
+
+test('version bumps skip a missing lockfile', async (t) => {
+    const { directory } = await projectFixture(t);
+    await rm(path.join(directory, 'package-lock.json'), { force: true });
+    assert.equal(await updateVersion(directory), '1.2.4');
+    const { packageJson, manifest } = await readProject(directory);
+    assert.equal(packageJson.version, '1.2.4');
+    assert.equal(manifest.version, '1.2.4');
+    await assert.rejects(readFile(path.join(directory, 'package-lock.json')), { code: 'ENOENT' });
+});
+
+test('version bumps explain an invalid lockfile, and write nothing', async (t) => {
+    const { directory } = await projectFixture(t);
+    const lockPath = path.join(directory, 'package-lock.json');
+    const packageText = await readFile(path.join(directory, 'package.json'), 'utf8');
+    for (const lockText of ['{ not json', 'null']) {
+        await writeFile(lockPath, lockText);
+        await assert.rejects(updateVersion(directory), { name: 'PluginScriptsError' });
+        assert.equal(await readFile(lockPath, 'utf8'), lockText);
         assert.equal(await readFile(path.join(directory, 'package.json'), 'utf8'), packageText);
     }
 });
