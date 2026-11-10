@@ -225,7 +225,7 @@ test('merges main build overrides over the defaults', () => {
     assert.equal(options.outfile, 'dist/index.js');
 });
 
-test('keeps the root, entry, output, bundling, format, and plugins fixed for direct callers', () => {
+test('keeps the root, entry, output, bundling, and format fixed for direct callers', () => {
     /** @type {import('esbuild').BuildOptions} */
     const overrides = {
         absWorkingDir: '/elsewhere',
@@ -233,7 +233,6 @@ test('keeps the root, entry, output, bundling, format, and plugins fixed for dir
         outfile: 'other.js',
         bundle: false,
         format: 'esm',
-        plugins: [],
         platform: 'neutral',
         external: ['x'],
     };
@@ -243,7 +242,6 @@ test('keeps the root, entry, output, bundling, format, and plugins fixed for dir
     assert.equal(main.outfile, 'dist/index.js');
     assert.equal(main.bundle, true);
     assert.equal(main.format, 'cjs');
-    assert.equal(main.plugins?.[0]?.name, 'strip-node-prefix');
     // The main bundle may change its platform and externals.
     assert.equal(main.platform, 'neutral');
     assert.deepEqual(main.external, ['x']);

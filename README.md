@@ -49,7 +49,6 @@ in `.npmrc` are not used.
 ## Project layout
 
 - `src/index.ts`: main entry point, bundled to `dist/index.js` for the Node platform.
-  `node:` imports are rewritten to bare names for Joplin's plugin runtime.
 - `src/manifest.json` and `package.json`: versions must match; the package name starts
   with `joplin-plugin-` and `keywords` includes `joplin-plugin`.
 - `api/`: resolved through `tsconfig.json` `paths` (`api` and `api/*`).
@@ -195,9 +194,8 @@ Also exported: `createContentScriptBuildOptions`, `createWebviewScriptBuildOptio
 `contentScriptExternals`, and `PluginScriptsError` for expected configuration and validation errors.
 
 The `create*BuildOptions` functions always keep their own entry point, output file, format, and
-bundling, and the main bundle keeps its `node:` import rewrite. They do not check the other
-reserved options, which `readPluginConfig` rejects, so options such as `write: false` can be
-passed for in-memory builds.
+bundling. They do not check the other reserved options, which `readPluginConfig` rejects, so
+options such as `write: false` can be passed for in-memory builds.
 
 ## Development
 

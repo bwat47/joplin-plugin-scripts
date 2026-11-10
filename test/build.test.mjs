@@ -30,8 +30,10 @@ test('builds and packages a plugin with an extra script, runtime assets, and mai
         }),
         'src/index.ts':
             "import { sep } from 'node:path';\n" +
+            "import { delimiter } from 'path';\n" +
+            "import { DatabaseSync } from 'node:sqlite';\n" +
             'declare const joplin: { plugins: { register(p: object): void } };\n' +
-            'joplin.plugins.register({ onStart: async () => sep });\n',
+            'joplin.plugins.register({ onStart: async () => [sep, delimiter, DatabaseSync] });\n',
         'src/contentScripts/editor.ts':
             "import { EditorView } from '@codemirror/view';\n" +
             'export default () => ({ plugin: () => EditorView });\n',
@@ -59,8 +61,8 @@ test('builds and packages a plugin with an extra script, runtime assets, and mai
         require: (/** @type {string} */ name) => requires.push(name) && { sep: '/' },
     });
     assert.equal(registered, true);
-    // Node built-ins keep the bare names Joplin's plugin runtime expects.
-    assert.deepEqual(requires, ['path']);
+    // Preserve both prefixed and bare built-ins, including modules that require the prefix.
+    assert.deepEqual(requires, ['node:path', 'path', 'node:sqlite']);
 
     const contentScript = await readFile(path.join(directory, 'dist/contentScripts/editor.js'), 'utf8');
     assert.match(contentScript, /require\("@codemirror\/view"\)/);
