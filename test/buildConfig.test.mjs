@@ -15,13 +15,14 @@ import { projectFixture } from './helpers.mjs';
 
 const root = path.resolve('/project');
 
-test('copies runtime assets while excluding TypeScript, tests, and fixtures', () => {
+test('copies runtime assets while excluding TypeScript, JSX, tests, and fixtures', () => {
     for (const relative of ['manifest.json', 'diffPreview/styles.css', 'worker.js']) {
         assert.equal(isRuntimeAsset(root, path.join(root, 'src', relative)), true, relative);
     }
     for (const relative of [
         'index.ts',
         'view.tsx',
+        'dialog.jsx',
         'worker.mts',
         'config.cts',
         'types.d.ts',

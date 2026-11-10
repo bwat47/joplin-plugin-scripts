@@ -53,7 +53,7 @@ in `.npmrc` are not used.
 - `src/manifest.json` and `package.json`: versions must match; the package name starts
   with `joplin-plugin-` and `keywords` includes `joplin-plugin`.
 - `api/`: resolved through `tsconfig.json` `paths` (`api` and `api/*`).
-- Other files in `src/` are copied to `dist/`, except TypeScript sources, `*.test.*` /
+- Other files in `src/` are copied to `dist/`, except TypeScript and JSX sources, `*.test.*` /
   `*.spec.*` files, and anything under `fixtures/` or `__tests__/` directories.
 
 ## Configuration

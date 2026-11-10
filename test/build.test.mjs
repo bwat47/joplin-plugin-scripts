@@ -93,6 +93,19 @@ test('builds webview scripts that run as plain scripts without module, exports, 
     assert.equal(window.initialized, 'ready');
 });
 
+test('ships only the bundle for a JSX webview script, not its source', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({ webviewScripts: ['dialog/dialog.jsx'] }),
+        'src/index.ts': 'export {};\n',
+        'src/dialog/dialog.jsx': '/** @jsx h */\nconst h = (tag) => tag;\nwindow.element = <div />;\n',
+    });
+    runCli(directory, 'build');
+
+    const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+    assert.deepEqual(entries, ['dialog/dialog.js', 'index.js', 'manifest.json']);
+});
+
 test('applies content-script and webview-script build options only to their own scripts', async (t) => {
     const { directory } = await projectFixture(t);
     await writeFiles(directory, {
