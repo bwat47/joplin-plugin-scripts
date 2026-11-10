@@ -80,7 +80,10 @@ test('explains a malformed plugin config', async (t) => {
             JSON.stringify({ contentScriptBuildOptions: { format: 'esm' } }),
             /"contentScriptBuildOptions" cannot set format/,
         ],
-        [JSON.stringify({ contentScriptBuildOptions: { platform: 'node' } }), /cannot set platform/],
+        [
+            JSON.stringify({ webviewScriptBuildOptions: { platform: 'node' } }),
+            /"webviewScriptBuildOptions" cannot set platform/,
+        ],
         [
             JSON.stringify({ contentScriptBuildOptions: { external: [1] } }),
             /"contentScriptBuildOptions\.external" must/,
@@ -250,7 +253,9 @@ test('keeps the root, entry, output, bundling, and format fixed for direct calle
     assert.equal(contentScript.outfile, 'dist/cs.js');
     assert.equal(contentScript.bundle, true);
     assert.equal(contentScript.format, 'cjs');
-    assert.equal(contentScript.platform, 'browser');
+    // Content scripts may change their platform, e.g. for desktop-only plugins.
+    assert.equal(contentScript.platform, 'neutral');
+    assert.equal(createContentScriptBuildOptions(root, 'cs.ts').platform, 'browser');
 
     const webview = createWebviewScriptBuildOptions(root, 'dialog.ts', overrides);
     assert.equal(webview.outfile, 'dist/dialog.js');
@@ -292,6 +297,18 @@ test('defaults script build options when the config omits them', async (t) => {
     const config = await readPluginConfig(directory);
     assert.deepEqual(config.contentScriptBuildOptions, {});
     assert.deepEqual(config.webviewScriptBuildOptions, {});
+});
+
+test('lets content scripts set their platform', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFile(
+        path.join(directory, 'plugin.config.json'),
+        JSON.stringify({ extraScripts: ['cs.ts'], contentScriptBuildOptions: { platform: 'node', external: ['fs'] } })
+    );
+    const { contentScriptBuildOptions } = await readPluginConfig(directory);
+    const options = createContentScriptBuildOptions(root, 'cs.ts', contentScriptBuildOptions);
+    assert.equal(options.platform, 'node');
+    assert.deepEqual(options.external, [...contentScriptExternals, 'fs']);
 });
 
 test('merges content-script overrides, keeping host libraries external and default definitions', () => {

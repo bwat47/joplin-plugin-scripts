@@ -74,9 +74,10 @@ overrides build options:
 ### Scripts
 
 - `extraScripts`: content scripts registered with `joplin.contentScripts.register`
-  (CodeMirror and Markdown-it plugins), relative to `src/`. Each is bundled for the browser
-  as CommonJS to the same path under `dist/` with a `.js` extension. Joplin's CodeMirror
-  and Lezer packages stay external so they share the host's instances.
+  (CodeMirror and Markdown-it plugins), relative to `src/`. Each is bundled as CommonJS
+  to the same path under `dist/` with a `.js` extension. Joplin's CodeMirror and Lezer
+  packages stay external so they share the host's instances.
+    - Content scripts default to esbuild's `browser` platform, unlike the generator's `target: 'node'`: desktop loads them with Node access, but mobile and the web app don't. Unresolved Node built-in imports fail the build by default, and dependency resolution prefers browser entry points where provided. See `external` and `platform` below for desktop-only plugins.
 - `webviewScripts`: scripts loaded into a dialog or panel with `addScript`, relative to
   `src/`. Each builds as a self-contained IIFE and must initialize itself. Plain `.js`
   files in `src/` are copied automatically and don't need listing if they already work
@@ -108,8 +109,13 @@ Restrictions for individual bundle types are described below.
 - `define`: `process.env.NODE_ENV` stays `"production"` unless overridden, because
   `define` entries merge (see below).
 - `external`: content-script entries extend the CodeMirror and Lezer externals, which
-  cannot be removed. Webview scripts cannot set `external`, because they have no runtime
-  `require`.
+  cannot be removed. A desktop-only plugin can list Node built-ins here (e.g. `["fs"]`) to
+  keep them as runtime `require` calls in a content script. Webview scripts cannot set
+  `external`, because they have no runtime `require`.
+- `platform`: content scripts can set `"platform": "node"` in `contentScriptBuildOptions`
+  to match the generator. Dependency resolution then prefers Node entry points where
+  provided. Only do this for desktop-only plugins: Node APIs aren't available on mobile or the web app.
+  Webview scripts always use `browser`.
 - `sourcemap`: for debugging, prefer `"inline"`. Setting it to `true` writes `.js.map`
   files into `dist/` that ship in the `.jpl`.
 
@@ -119,8 +125,8 @@ type can add or override entries without dropping the shared ones. An inherited 
 replaced but not removed. All other options, including arrays, replace the shared value.
 
 Options that control inputs, outputs, and bundling mode (such as `entryPoints`, `outfile`,
-`format`, `plugins`, and `bundle`) are reserved. Content and webview scripts also cannot
-set `platform`.
+`format`, `plugins`, and `bundle`) are reserved. Webview scripts also cannot set
+`platform`.
 
 ## Migrating from the standard Webpack setup
 
