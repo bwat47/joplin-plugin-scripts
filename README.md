@@ -180,6 +180,17 @@ equivalent esbuild options:
 External packages remain runtime imports and are not included in the archive, so they
 must be available in Joplin's plugin runtime.
 
+esbuild handles TypeScript, JSX, CSS, and JSON imports itself, and the `loader` option covers
+raw text and binary assets (e.g. `{ ".svg": "text", ".woff2": "dataurl" }`). Note these
+differences from common Webpack setups:
+
+- A bundle that imports CSS writes it to a `.css` file next to the bundle, e.g.
+  `dist/dialog/dialog.css`, instead of injecting it like `style-loader`. Load it in the dialog
+  or panel with `addScript`.
+- esbuild plugins cannot be configured. For Sass, Tailwind, or similar tools, run the tool
+  before the build and write its output into `src/` (and add that output to `.gitignore`).
+  The build then copies the output to `dist/`. Output written directly to `dist/` is deleted.
+
 See [Build options](#build-options) for shared and per-bundle settings and restrictions.
 
 ## Testing a plugin's bundles
