@@ -1,7 +1,8 @@
 # @bwat47/joplin-plugin-scripts
 
-Shared build tooling for Joplin plugins: an esbuild-based replacement for the
-generator-joplin Webpack config and its scripts.
+Shared, esbuild-based build and packaging tools for Joplin plugins. They can be used in place of the default generator-joplin Webpack setup and allow you to configure common esbuild options in your existing plugin.config.json file. The package manages the bundler and its dependencies, so each plugin only needs an npm script to invoke the build.
+
+If a plugin relies on custom Webpack loaders or plugins, see the [Translate Webpack overrides to esbuild options](#translate-webpack-overrides-to-esbuild-options) section.
 
 ## Installation
 
