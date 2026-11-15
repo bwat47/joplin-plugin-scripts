@@ -1,0 +1,19 @@
+{
+    "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "plugins": ["eslint", "import", "jsdoc", "node", "oxc", "unicorn"],
+    "categories": {
+        "correctness": "error",
+        "suspicious": "error"
+    },
+    "env": {
+        "node": true
+    },
+    "ignorePatterns": ["types/**"],
+    "rules": {
+        "eqeqeq": ["error", "always"],
+        "eslint/no-underscore-dangle": "off",
+        "jsdoc/require-property-description": "off",
+        "unicorn/consistent-function-scoping": "off",
+        "unicorn/no-array-sort": "off"
+    }
+}

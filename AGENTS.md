@@ -17,14 +17,15 @@ Shared build, packaging, version, and API-update scripts for Joplin plugins, pub
 - Tests use the built-in `node:test` runner and `node:assert`. Don't add another test framework.
 - Expected, user-facing failures throw `PluginScriptsError` (`lib/errors.mjs`); the CLI prints
   those without a stack trace. Anything else counts as a bug and is rethrown.
-- Formatting is Prettier (4 spaces, single quotes, 120 columns, sorted imports). Run
-  `npm run format` instead of formatting by hand.
+- Linting is Oxlint (`.oxlintrc.json`, including its JSDoc plugin). Formatting is Oxfmt
+  (`.oxfmtrc.json`: 4 spaces, single quotes, 120 columns, sorted imports). Run `npm run format`
+  instead of formatting by hand.
 - This is a shared package used by several plugins: treat changes to CLI commands, config options,
   build output, or exports as breaking, and update `README.md` when behavior changes.
 
 ## Line endings
 
-- All text files use LF. Don't manually repair incidental CRLF changes. Git normalizes text to LF when staging; Prettier also normalizes files when formatting.
+- All text files use LF. Don't manually repair incidental CRLF changes. Git normalizes text to LF when staging; Oxfmt also normalizes files when formatting.
 
 ## Git
 
