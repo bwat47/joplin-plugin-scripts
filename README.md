@@ -226,7 +226,11 @@ npm test
 npm run typecheck
 npm run lint
 npm run format
+npm run test:package   # pack, install into a scratch plugin, and exercise the installed package
 ```
+
+CI (`.github/workflows/ci.yml`) runs type checking, lint, and the format check once, and the tests
+and packed-package smoke test on Linux and Windows with Node 22 and the current LTS.
 
 To try a change in a plugin before publishing, run `npm pack` here and
 `npm install -D ../joplin-plugin-scripts/bwat47-joplin-plugin-scripts-<version>.tgz` in the plugin.

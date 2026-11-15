@@ -1,0 +1,49 @@
+name: CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    checks:
+        name: Typecheck, lint, format
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run typecheck
+            - run: npm run lint
+            - run: npm run format:check
+
+    test:
+        name: Test (${{ matrix.os }}, Node ${{ matrix.node }})
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, windows-latest]
+                node: [22, lts/*]
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: ${{ matrix.node }}
+                  cache: npm
+            - run: npm ci
+            - run: npm test
+            # Packs the package (prepack generates the declarations), installs it into a scratch
+            # plugin project, and runs the CLI, a build, the public import, and a type check.
+            - run: npm run test:package
