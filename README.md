@@ -50,8 +50,11 @@ in `.npmrc` are not used.
 ## Project layout
 
 - `src/index.ts`: main entry point, bundled to `dist/index.js` for the Node platform.
-- `src/manifest.json` and `package.json`: versions must match; the package name starts
-  with `joplin-plugin-` and `keywords` includes `joplin-plugin`.
+- `src/manifest.json` and `package.json`: both must contain a JSON object with a non-empty
+  string `version`, and the versions must match; the package name starts with
+  `joplin-plugin-` and `keywords` is an array that includes `joplin-plugin`. The manifest `id`
+  must be a string, and `categories` and `screenshots`, when present, must be arrays of
+  strings and of objects with a string `src`.
 - `api/`: resolved through `tsconfig.json` `paths` (`api` and `api/*`).
 - Other files in `src/` are copied to `dist/`, except TypeScript and JSX sources, `*.test.*` /
   `*.spec.*` files, and anything under `fixtures/` or `__tests__/` directories.
