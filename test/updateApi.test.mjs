@@ -134,7 +134,10 @@ function fakeRegistry(tarball, integrity) {
     return { fetch: fakeFetch, requests };
 }
 
-/** @param {Buffer} bytes */
+/**
+ * @param {Buffer} bytes
+ * @returns {string}
+ */
 function sha512Integrity(bytes) {
     return `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
 }
