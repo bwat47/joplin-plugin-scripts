@@ -17,6 +17,8 @@
         "jsdoc/require-property-description": "off",
         "jsdoc/require-returns": "error",
         "unicorn/consistent-function-scoping": "off",
-        "unicorn/no-array-sort": "off"
+        // toSorted()/toReversed() are ES2023; the build currently targets ES2022.
+        "unicorn/no-array-sort": "off",
+        "unicorn/no-array-reverse": "off"
     }
 }
