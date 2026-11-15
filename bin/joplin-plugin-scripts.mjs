@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import path from 'node:path';
+
 import { buildPlugin } from '../lib/build.mjs';
 import { PluginScriptsError } from '../lib/errors.mjs';
 import { updateApi } from '../lib/updateApi.mjs';
@@ -23,7 +25,8 @@ const commands = {
     build: {
         maxArgs: 0,
         run: async (root) => {
-            await buildPlugin(root);
+            const { archivePath, version } = await buildPlugin(root);
+            console.info(`Created ${path.relative(root, archivePath)} (v${version}).`);
         },
     },
     'update-version': {

@@ -18,10 +18,10 @@ test('packages the runtime files at archive root, without dotfiles, with matchin
         'dist/assets/.DS_Store': 'finder metadata',
         'dist/.cache/state.json': '{}',
     });
-    await packagePlugin(directory, manifest);
+    const archive = await packagePlugin(directory, manifest);
     const publish = path.join(directory, 'publish');
     assert.deepEqual((await readdir(publish)).sort(), ['test.plugin.jpl', 'test.plugin.json']);
-    const archive = path.join(publish, 'test.plugin.jpl');
+    assert.equal(archive, path.join(publish, 'test.plugin.jpl'));
     assert.deepEqual(await archiveEntries(archive), ['assets/example.css', 'index.js', 'manifest.json']);
     const info = JSON.parse(await readFile(path.join(publish, 'test.plugin.json'), 'utf8'));
     const hash = createHash('sha256')

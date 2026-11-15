@@ -32,7 +32,8 @@ dependency in your plugin project; it is not required by the build command itsel
 Commands run from the plugin project root, which npm scripts do automatically.
 
 - `build`: validates the project, clears `dist/` and `publish/`, copies runtime assets
-  from `src/`, bundles, and writes `publish/<id>.jpl` and `<id>.json`.
+  from `src/`, bundles, and writes `publish/<id>.jpl` and `<id>.json`, then prints the archive
+  path and version, e.g. `Created publish/com.example.plugin.jpl (v1.2.3).`
 - `update-version [patch|minor|major|<x.y.z>]`: updates the version across
   `package.json`, `src/manifest.json`, and `package-lock.json` (if present). With no argument it
   increments the patch version; `minor` and `major` increment that part and reset the

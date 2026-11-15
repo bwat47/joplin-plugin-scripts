@@ -42,7 +42,8 @@ test('builds and packages a plugin with an extra script, runtime assets, and mai
         'src/fixtures/example.md': '# fixture',
         'dist/stale.js': 'removed by the build',
     });
-    runCli(directory, 'build');
+    // esbuild logs to stderr, so stdout holds only the confirmation.
+    assert.equal(runCli(directory, 'build'), `Created ${path.join('publish', 'test.plugin.jpl')} (v1.2.3).\n`);
 
     const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
     assert.deepEqual(entries, ['contentScripts/editor.js', 'index.js', 'manifest.json', 'styles.css']);
