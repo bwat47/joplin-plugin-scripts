@@ -1,6 +1,6 @@
 {
     "name": "@bwat47/joplin-plugin-scripts",
-    "version": "1.6.1",
+    "version": "1.6.2",
     "description": "Shared esbuild build, packaging, version, and API-update scripts for Joplin plugins",
     "license": "MIT",
     "author": "bwat47",
