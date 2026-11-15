@@ -235,5 +235,16 @@ and packed-package smoke test on Linux and Windows with Node 22 and the current 
 To try a change in a plugin before publishing, run `npm pack` here and
 `npm install -D ../joplin-plugin-scripts/bwat47-joplin-plugin-scripts-<version>.tgz` in the plugin.
 
-Release: bump `version`, then `npm publish --access public` (`prepublishOnly` runs type checking,
-lint, format check, and tests; `prepack` then generates the declarations).
+Release:
+
+```sh
+npm version <patch|minor|major>   # commits the bump and creates the vX.Y.Z tag
+git push --follow-tags
+gh release create vX.Y.Z --generate-notes   # add --prerelease to publish under the `next` dist-tag
+```
+
+Publishing the GitHub release runs `.github/workflows/publish.yml`. It reruns the full CI suite
+on the tagged commit and checks that the tag matches `package.json`. It then waits for approval in
+the `npm` environment and publishes through npm trusted publishing (OIDC, with provenance), so no
+npm token is involved. `prepublishOnly` (type checking, lint, format check, tests) and `prepack`
+(declarations) run as part of `npm publish`, whether in CI or locally.
