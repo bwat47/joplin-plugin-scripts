@@ -1,8 +1,6 @@
 # @bwat47/joplin-plugin-scripts
 
-Shared, esbuild-based build and packaging tools for Joplin plugins. They can be used in place of the default generator-joplin Webpack setup and allow you to configure common esbuild options in your existing plugin.config.json file. The package manages the bundler and its dependencies, so each plugin only needs an npm script to invoke the build.
-
-If a plugin relies on custom Webpack loaders or plugins, see the [Translate Webpack overrides to esbuild options](#translate-webpack-overrides-to-esbuild-options) section.
+Build and package Joplin plugins with esbuild. Replaces the standard generator-joplin Webpack setup and reads esbuild options from plugin.config.json. The package manages the bundler and its dependencies, so each plugin only needs an npm script to invoke the build.
 
 ## Installation
 
@@ -31,17 +29,26 @@ dependency in your plugin project; it is not required by the build command itsel
 
 Commands run from the plugin project root, which npm scripts do automatically.
 
-- `build`: validates the project, clears `dist/` and `publish/`, copies runtime assets
-  from `src/`, bundles, and writes `publish/<id>.jpl` and `<id>.json`, then prints the archive
-  path and version, e.g. `Created publish/com.example.plugin.jpl (v1.2.3).`
-- `update-version [patch|minor|major|<x.y.z>]`: updates the version across
-  `package.json`, `src/manifest.json`, and `package-lock.json` (if present). With no argument it
-  increments the patch version; `minor` and `major` increment that part and reset the
-  parts after it (`1.3.7` → `1.4.0`); an explicit `x.y.z` version must be higher than
-  the current one. Pass the argument through npm with `--`, e.g.
-  `npm run updateVersion -- minor`.
-- `update-api`: replaces `api/` with the latest generator-joplin API, and warns if this
-  package's category or content-script external lists differ from the generator's.
+| Command          | Purpose                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `build`          | Validate, bundle, and package the plugin into `publish/`.                                                                |
+| `update-version` | Update versions in `package.json`, `src/manifest.json`, and `package-lock.json` (if present).                            |
+| `update-api`     | Replace `api/` with the latest generator-joplin API and warn about category or content-script external list differences. |
+
+`build` clears `dist/` and `publish/`, copies runtime assets from `src/`, bundles, and
+writes `publish/<id>.jpl` and `<id>.json`. It prints the archive path and version, e.g.
+`Created publish/com.example.plugin.jpl (v1.2.3).`
+
+`update-version [patch|minor|major|<x.y.z>]` defaults to a patch increment. `minor` and
+`major` increment that part and reset the parts after it (`1.3.7` → `1.4.0` for `minor`).
+An explicit `x.y.z` version must be higher than the current one. Pass arguments through
+npm with `--`:
+
+```sh
+npm run updateVersion           # Increment the patch version
+npm run updateVersion -- minor # Increment the minor version
+npm run updateVersion -- 2.0.0 # Set an explicit higher version
+```
 
 `update-api` downloads generator-joplin directly from the registry in
 `npm_config_registry` (set by npm scripts), or registry.npmjs.org, and verifies its
@@ -50,15 +57,21 @@ in `.npmrc` are not used.
 
 ## Project layout
 
-- `src/index.ts`: main entry point, bundled to `dist/index.js` for the Node platform.
-- `src/manifest.json` and `package.json`: both must contain a JSON object with a non-empty
-  string `version`, and the versions must match; the package name starts with
-  `joplin-plugin-` and `keywords` is an array that includes `joplin-plugin`. The manifest `id`
-  must be a string, and `categories` and `screenshots`, when present, must be arrays of
-  strings and of objects with a string `src`.
+- `src/index.ts`: main entry point, bundled to `dist/index.js`.
+- `src/manifest.json`: Joplin plugin metadata.
+- `package.json`: npm package metadata and scripts.
 - `api/`: resolved through `tsconfig.json` `paths` (`api` and `api/*`).
 - Other files in `src/` are copied to `dist/`, except TypeScript and JSX sources, `*.test.*` /
   `*.spec.*` files, and anything under `fixtures/` or `__tests__/` directories.
+
+### Project requirements
+
+- `src/manifest.json` and `package.json` must each contain a JSON object with a non-empty
+  string `version`, and the versions must match.
+- The package name must start with `joplin-plugin-`, and `keywords` must be an array that
+  includes `joplin-plugin`.
+- The manifest `id` must be a string. If present, `categories` must be an array of strings,
+  and `screenshots` must be an array of objects with a string `src`.
 
 ## Configuration
 
@@ -79,16 +92,14 @@ overrides build options:
 ### Scripts
 
 - `extraScripts`: content scripts registered with `joplin.contentScripts.register`
-  (CodeMirror and Markdown-it plugins), relative to `src/`. Each is bundled as CommonJS
-  to the same path under `dist/` with a `.js` extension. Joplin's CodeMirror and Lezer
-  packages stay external so they share the host's instances.
-    - Content scripts default to esbuild's `browser` platform, unlike the generator's `target: 'node'`: desktop loads them with Node access, but mobile and the web app don't. Unresolved Node built-in imports fail the build by default, and dependency resolution prefers browser entry points where provided. See `external` and `platform` below for desktop-only plugins.
+  (CodeMirror and Markdown-it plugins), relative to `src/`.
 - `webviewScripts`: scripts loaded into a dialog or panel with `addScript`, relative to
-  `src/`. Each builds as a self-contained IIFE and must initialize itself. Plain `.js`
+  `src/`. Each must initialize itself. Plain `.js`
   files in `src/` are copied automatically and don't need listing if they already work
   as standalone scripts. List them here if they need dependency bundling or syntax
   transformation.
 
+Each listed script builds to the same path under `dist/` with a `.js` extension.
 Output paths must be unique (compared case-insensitively), and `dist/index.js` is
 reserved for the main bundle.
 
@@ -99,11 +110,19 @@ reserved for the main bundle.
 override those settings for their respective bundle types.
 
 By default, bundles are minified, target ES2020, and define
-`process.env.NODE_ENV` as `"production"`. The main bundle uses CommonJS;
-see [Scripts](#scripts) for content-script and webview-script formats.
+`process.env.NODE_ENV` as `"production"`.
 
-`platform` and `external` cannot be set in `buildOptions`.
-Restrictions for individual bundle types are described below.
+| Bundle                            | Options key                 | Default platform | Format              | Default externals                                                     |
+| --------------------------------- | --------------------------- | ---------------- | ------------------- | --------------------------------------------------------------------- |
+| Main                              | `mainBuildOptions`          | `node`           | CommonJS            | None                                                                  |
+| Content script (`extraScripts`)   | `contentScriptBuildOptions` | `browser`        | CommonJS            | Joplin's CodeMirror and Lezer packages, to share the host's instances |
+| Webview script (`webviewScripts`) | `webviewScriptBuildOptions` | `browser`        | Self-contained IIFE | None                                                                  |
+
+> [!NOTE]
+> Content scripts default to `browser`, unlike the generator's `target: 'node'`:
+> desktop loads them with Node access, but mobile and the web app don't. Unresolved
+> Node built-in imports fail the build by default, and dependency resolution prefers
+> browser entry points where provided.
 
 - `target`: to support older runtimes, set `target` in `buildOptions` (e.g. `"es2015"`).
   The build ignores `compilerOptions.target` in `tsconfig.json`. The
@@ -113,14 +132,12 @@ Restrictions for individual bundle types are described below.
 - `alias`: relative targets resolve from the project root.
 - `define`: `process.env.NODE_ENV` stays `"production"` unless overridden, because
   `define` entries merge (see below).
-- `external`: content-script entries extend the CodeMirror and Lezer externals, which
-  cannot be removed. A desktop-only plugin can list Node built-ins here (e.g. `["fs"]`) to
-  keep them as runtime `require` calls in a content script. Webview scripts cannot set
-  `external`, because they have no runtime `require`.
+- `external`: a desktop-only plugin can list Node built-ins in
+  `contentScriptBuildOptions.external` (e.g. `["fs"]`) to keep them as runtime `require`
+  calls in a content script.
 - `platform`: content scripts can set `"platform": "node"` in `contentScriptBuildOptions`
   to match the generator. Dependency resolution then prefers Node entry points where
   provided. Only do this for desktop-only plugins: Node APIs aren't available on mobile or the web app.
-  Webview scripts always use `browser`.
 - `sourcemap`: for debugging, prefer `"inline"`. Setting it to `true` writes `.js.map`
   files into `dist/` that ship in the `.jpl`.
 
@@ -129,19 +146,30 @@ entry by entry across the defaults, `buildOptions`, and each bundle type's optio
 type can add or override entries without dropping the shared ones. An inherited entry can be
 replaced but not removed. All other options, including arrays, replace the shared value.
 
-Options that control inputs, outputs, and bundling mode (such as `entryPoints`, `outfile`,
-`format`, `plugins`, and `bundle`) are reserved. Webview scripts also cannot set
-`platform`.
+#### Restrictions
+
+- All option groups reserve `absWorkingDir`, `entryPoints`, `outfile`, `outdir`, `write`,
+  `format`, `plugins`, `bundle`, and `packages`.
+- `buildOptions` and `webviewScriptBuildOptions` cannot set `platform` or `external`.
+  Webview scripts always use `browser` and bundle all dependencies because they have no
+  runtime `require`.
+- `contentScriptBuildOptions.external` extends the CodeMirror and Lezer externals;
+  those defaults cannot be removed.
 
 ## Migrating from the standard Webpack setup
 
 1. Follow [Installation](#installation) to install the package and replace the npm scripts.
-2. Add the [Joplin API path mappings](#resolve-the-joplin-api-through-typescript-paths)
-   and [align the TypeScript target](#align-the-typescript-target-with-the-build-target).
-3. [Translate any Webpack overrides](#translate-webpack-overrides-to-esbuild-options).
-4. Run `npm run dist` and test the plugin in Joplin. Once the migration succeeds,
+2. Add the [Joplin API path mappings](#resolve-the-joplin-api-through-typescript-paths).
+3. Align the TypeScript and build targets so type checking matches what ships: set
+   `compilerOptions.target` to `"ES2020"` to match this build's default, or lower
+   `buildOptions.target` to match your existing TypeScript target (see [Build options](#build-options)).
+4. [Translate any Webpack overrides](#translate-webpack-overrides-to-esbuild-options).
+5. Run `npm run dist` and test the plugin in Joplin. Once the migration succeeds,
    remove the obsolete Webpack configuration, scripts, and development dependencies
    that your project no longer uses.
+
+> [!NOTE]
+> If a plugin relies on custom Webpack loaders or plugins, see the [Translate Webpack overrides to esbuild options](#translate-webpack-overrides-to-esbuild-options) section.
 
 ### Resolve the Joplin API through TypeScript paths
 
@@ -162,12 +190,6 @@ Add these mappings to your existing `tsconfig.json` `compilerOptions` so `api` a
 Remove `baseUrl` ([deprecated in TypeScript 6](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-6-0.html#deprecated---baseurl))
 and make all path targets relative to the declaring `tsconfig.json`. Add explicit
 mappings for any other imports that relied on `baseUrl`.
-
-### Align the TypeScript target with the build target
-
-The generator's `tsconfig.json` [targets ES2015](https://github.com/laurent22/joplin/blob/dev/packages/generator-joplin/generators/app/templates/tsconfig.json), while this build emits ES2020 by default
-(see [Build options](#build-options)). To keep type checking in line with what ships, set
-`compilerOptions.target` to `"ES2020"`, or lower the build `target` in `buildOptions` to match.
 
 ### Translate Webpack overrides to esbuild options
 
@@ -221,30 +243,11 @@ options such as `write: false` can be passed for in-memory builds.
 
 ## Development
 
-```sh
+```bash
 npm test
 npm run typecheck
 npm run lint
 npm run format
-npm run test:package   # pack, install into a scratch plugin, and exercise the installed package
 ```
 
-CI (`.github/workflows/ci.yml`) runs type checking, lint, and the format check once, and the tests
-and packed-package smoke test on Linux and Windows with Node 22 and the current LTS.
-
-To try a change in a plugin before publishing, run `npm pack` here and
-`npm install -D ../joplin-plugin-scripts/bwat47-joplin-plugin-scripts-<version>.tgz` in the plugin.
-
-Release:
-
-```sh
-npm version <patch|minor|major>   # commits the bump and creates the vX.Y.Z tag
-git push --follow-tags
-gh release create vX.Y.Z --generate-notes   # add --prerelease to publish under the `next` dist-tag
-```
-
-Publishing the GitHub release runs `.github/workflows/publish.yml`. It reruns the full CI suite
-on the tagged commit and checks that the tag matches `package.json`. It then waits for approval in
-the `npm` environment and publishes through npm trusted publishing (OIDC, with provenance), so no
-npm token is involved. `prepublishOnly` (type checking, lint, format check, tests) and `prepack`
-(declarations) run as part of `npm publish`, whether in CI or locally.
+To try a change in a plugin before publishing, run `npm pack` here and `npm install -D ../joplin-plugin-scripts/bwat47-joplin-plugin-scripts-<version>.tgz` in the plugin.
