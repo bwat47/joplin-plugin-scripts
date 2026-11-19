@@ -35,9 +35,12 @@ Commands run from the plugin project root, which npm scripts do automatically.
 | `update-version` | Update versions in `package.json`, `src/manifest.json`, and `package-lock.json` (if present).                            |
 | `update-api`     | Replace `api/` with the latest generator-joplin API and warn about category or content-script external list differences. |
 
-`build` clears `dist/` and `publish/`, copies runtime assets from `src/`, bundles, and
-writes `publish/<id>.jpl` and `<id>.json`. It prints the archive path and version, e.g.
-`Created publish/com.example.plugin.jpl (v1.2.3).`
+`build` clears `dist/` and `publish/`, copies runtime assets from `src/`, bundles, writes
+`dist/THIRD-PARTY-LICENSES.txt` when any bundled third-party package includes a standalone
+license or notice file, and packages `publish/<id>.jpl` and `<id>.json`. It prints the archive
+path and version, e.g. `Created publish/com.example.plugin.jpl (v1.2.3).` The name
+`THIRD-PARTY-LICENSES.txt` is reserved: the build fails if `src/` contains a file with that name
+(in any letter case).
 
 `update-version [patch|minor|major|<x.y.z>]` defaults to a patch increment. `minor` and
 `major` increment that part and reset the parts after it (`1.3.7` → `1.4.0` for `minor`).

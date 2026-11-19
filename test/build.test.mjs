@@ -260,3 +260,78 @@ test('passes an update-version argument through and rejects extra arguments', as
     assert.throws(() => runCli(directory, 'update-version', 'minor', 'extra'), /Usage: joplin-plugin-scripts/);
     assert.throws(() => runCli(directory, 'build', 'extra'), /Usage: joplin-plugin-scripts/);
 });
+
+test('bundles standalone third-party package licenses into THIRD-PARTY-LICENSES.txt', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        LICENSE: 'Plugin root license (excluded)',
+        'plugin.config.json': JSON.stringify({
+            extraScripts: ['contentScripts/editor.ts'],
+        }),
+        'src/index.ts':
+            "import { mainHelper } from 'main-lib';\n" +
+            "import { bare } from 'no-license-lib';\n" +
+            'export const result = [mainHelper(), bare()];\n',
+        'src/contentScripts/editor.ts':
+            "import { EditorView } from '@codemirror/view';\n" +
+            "import { renderWidget } from 'widget-lib';\n" +
+            'export default () => ({ view: EditorView, widget: renderWidget() });\n',
+        'node_modules/main-lib/package.json': JSON.stringify({ name: 'main-lib', version: '1.2.0', license: 'MIT' }),
+        'node_modules/main-lib/LICENSE': 'MIT License for main-lib\n',
+        'node_modules/main-lib/index.js': 'export const mainHelper = () => "main";\n',
+        'node_modules/widget-lib/package.json': JSON.stringify({
+            name: 'widget-lib',
+            version: '0.5.0',
+            license: 'BSD-3-Clause',
+        }),
+        'node_modules/widget-lib/LICENSE.md': 'BSD License for widget-lib\n',
+        'node_modules/widget-lib/index.js': 'export const renderWidget = () => "widget";\n',
+        'node_modules/no-license-lib/package.json': JSON.stringify({
+            name: 'no-license-lib',
+            version: '1.0.0',
+            license: 'MIT',
+        }),
+        'node_modules/no-license-lib/index.js': 'export const bare = () => "bare";\n',
+        'node_modules/@codemirror/view/package.json': JSON.stringify({
+            name: '@codemirror/view',
+            version: '6.0.0',
+            license: 'MIT',
+        }),
+        'node_modules/@codemirror/view/LICENSE': 'External CodeMirror license (excluded)\n',
+        'node_modules/@codemirror/view/index.js': 'export class EditorView {}\n',
+        'node_modules/unused-lib/package.json': JSON.stringify({
+            name: 'unused-lib',
+            version: '1.0.0',
+            license: 'MIT',
+        }),
+        'node_modules/unused-lib/LICENSE': 'Unused license (excluded)\n',
+        'node_modules/unused-lib/index.js': 'export const unused = true;\n',
+    });
+
+    runCli(directory, 'build');
+
+    const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+    assert.deepEqual(entries, ['THIRD-PARTY-LICENSES.txt', 'contentScripts/editor.js', 'index.js', 'manifest.json']);
+
+    const licenses = await readFile(path.join(directory, 'dist/THIRD-PARTY-LICENSES.txt'), 'utf8');
+    assert.match(licenses, /main-lib@1\.2\.0 \(MIT\)[\s\S]*MIT License for main-lib/);
+    assert.match(licenses, /widget-lib@0\.5\.0 \(BSD-3-Clause\)[\s\S]*BSD License for widget-lib/);
+    assert.doesNotMatch(licenses, /Plugin root license/);
+    assert.doesNotMatch(licenses, /no-license-lib/);
+    assert.doesNotMatch(licenses, /External CodeMirror license/);
+    assert.doesNotMatch(licenses, /Unused license/);
+});
+
+test('rejects a src asset named like the generated license file before clearing existing output', async (t) => {
+    const { directory } = await projectFixture(t);
+    for (const name of ['THIRD-PARTY-LICENSES.txt', 'third-party-licenses.TXT']) {
+        await writeFiles(directory, {
+            [`src/${name}`]: 'Hand-written licenses\n',
+            'publish/previous.jpl': 'previous archive',
+        });
+        assert.throws(() => runCli(directory, 'build'), /conflicts with the generated dist\/THIRD-PARTY-LICENSES\.txt/);
+        assert.equal(await readFile(path.join(directory, 'dist/index.js'), 'utf8'), '/* bundled plugin */');
+        assert.equal(await readFile(path.join(directory, 'publish/previous.jpl'), 'utf8'), 'previous archive');
+        await rm(path.join(directory, 'src', name));
+    }
+});
