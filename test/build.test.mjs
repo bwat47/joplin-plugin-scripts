@@ -110,6 +110,52 @@ test('ships only the bundle for a JSX webview script, not its source', async (t)
     assert.deepEqual(entries, ['dialog/dialog.js', 'index.js', 'manifest.json']);
 });
 
+test('bundles .mts, .cts, .mjs, and .cjs entry points to .js without copying their sources', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({
+            extraScripts: ['contentScripts/editor.mts', 'contentScripts/viewer.cts'],
+            webviewScripts: ['./dialog/panel.mjs', 'dialog/legacy.cjs'],
+        }),
+        'src/index.ts': 'export {};\n',
+        'src/contentScripts/editor.mts': 'export default () => ({ plugin: () => "mts" });\n',
+        'src/contentScripts/viewer.cts': 'export default () => ({ plugin: () => "cts" });\n',
+        'src/dialog/panel.mjs': 'window.panel = "mjs";\n',
+        'src/dialog/legacy.cjs': 'window.legacy = "cjs";\n',
+        'src/dialog/standalone.mjs': 'export const keep = true;\n',
+    });
+    runCli(directory, 'build');
+
+    const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+    assert.deepEqual(entries, [
+        'contentScripts/editor.js',
+        'contentScripts/viewer.js',
+        'dialog/legacy.js',
+        'dialog/panel.js',
+        'dialog/standalone.mjs',
+        'index.js',
+        'manifest.json',
+    ]);
+});
+
+test(
+    'preserves literal backslashes when excluding bundled scripts on POSIX',
+    { skip: process.platform === 'win32' },
+    async (t) => {
+        const { directory } = await projectFixture(t);
+        await writeFiles(directory, {
+            'plugin.config.json': JSON.stringify({ webviewScripts: ['dialog\\panel.mjs'] }),
+            'src/index.ts': 'export {};\n',
+            'src/dialog\\panel.mjs': 'window.panel = true;\n',
+            'src/dialog/panel.mjs': 'export const standalone = true;\n',
+        });
+        runCli(directory, 'build');
+
+        const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+        assert.deepEqual(entries, ['dialog/panel.mjs', 'dialog\\panel.js', 'index.js', 'manifest.json']);
+    }
+);
+
 test('applies content-script and webview-script build options only to their own scripts', async (t) => {
     const { directory } = await projectFixture(t);
     await writeFiles(directory, {

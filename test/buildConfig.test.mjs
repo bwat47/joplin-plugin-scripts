@@ -351,7 +351,13 @@ test('maps content scripts to dist and rejects paths outside src', () => {
     assert.deepEqual(options.entryPoints, ['src/contentScripts/codeMirror.ts']);
     assert.equal(options.outfile, 'dist/contentScripts/codeMirror.js');
     assert.equal(options.platform, 'browser');
-    for (const script of ['../outside.ts', path.resolve('/abs.ts'), 'styles.css']) {
+    for (const ext of ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']) {
+        const script = `contentScripts/script${ext}`;
+        const built = createContentScriptBuildOptions(root, script);
+        assert.deepEqual(built.entryPoints, [`src/${script}`], script);
+        assert.equal(built.outfile, 'dist/contentScripts/script.js', script);
+    }
+    for (const script of ['../outside.ts', path.resolve('/abs.ts'), 'styles.css', 'bad.mtsx', 'bad.cjsx']) {
         assert.throws(() => createContentScriptBuildOptions(root, script), /Invalid extra script path/, script);
     }
 });

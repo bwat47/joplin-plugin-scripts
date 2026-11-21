@@ -64,11 +64,12 @@ in `.npmrc` are not used.
 - `src/manifest.json`: Joplin plugin metadata.
 - `package.json`: npm package metadata and scripts.
 - `api/`: resolved through `tsconfig.json` `paths` (`api` and `api/*`).
-- Other files in `src/` are copied to `dist/`, except TypeScript and JSX sources, JavaScript test
-  and benchmark files (`*.test.js`, `*.spec.js`, and `*.bench.js`, including `.mjs` and `.cjs`),
-  anything under `fixtures/`, `__tests__/`, `__benchmarks__/`, `__mocks__/`, `__fixtures__/`, or
-  `__snapshots__/` directories, paths listed in `excludeAssets`, and dotfiles or dot-directories
-  (e.g. `.DS_Store`). Only directories that contain a copied file are created.
+- Other files in `src/` are copied to `dist/`, except TypeScript and JSX sources, scripts listed in
+  `extraScripts` or `webviewScripts`, JavaScript test and benchmark files (`*.test.js`, `*.spec.js`,
+  and `*.bench.js`, including `.mjs` and `.cjs`), anything under `fixtures/`, `__tests__/`,
+  `__benchmarks__/`, `__mocks__/`, `__fixtures__/`, or `__snapshots__/` directories, paths listed in
+  `excludeAssets`, and dotfiles or dot-directories (e.g. `.DS_Store`). Only directories that contain
+  a copied file are created.
 - Symlinks in `src/` are followed: their targets are copied as regular files and directories, so
   shared assets can be linked in. Broken links are skipped.
 
@@ -103,11 +104,12 @@ overrides build options:
 - `extraScripts`: content scripts registered with `joplin.contentScripts.register`
   (CodeMirror and Markdown-it plugins), relative to `src/`.
 - `webviewScripts`: scripts loaded into a dialog or panel with `addScript`, relative to
-  `src/`. Each must initialize itself. Plain `.js`
+  `src/`. Each must initialize itself. Plain `.js`, `.mjs`, and `.cjs`
   files in `src/` are copied automatically and don't need listing if they already work
   as standalone scripts. List them here if they need dependency bundling or syntax
   transformation.
 
+Both lists accept `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.mts`, `.cts`, and `.tsx` files.
 Each listed script builds to the same path under `dist/` with a `.js` extension.
 Output paths must be unique (compared case-insensitively), and `dist/index.js` is
 reserved for the main bundle.
