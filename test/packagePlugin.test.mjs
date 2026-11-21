@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { PluginScriptsError } from '../lib/errors.mjs';
+import { hasErrorCode, PluginScriptsError } from '../lib/errors.mjs';
 import { packagePlugin, readProject } from '../lib/packagePlugin.mjs';
 import { archiveEntries, projectFixture, writeFiles } from './helpers.mjs';
 
@@ -73,6 +74,19 @@ test('propagates archive write failures', async (t) => {
 
 test('validates the plugin ID, versions, package name, categories, and local screenshots', async (t) => {
     const { directory, manifest } = await projectFixture(t);
+    await writeFiles(directory, { 'images/DEMO.PNG': 'png bytes', '..assets/shot.png': 'png bytes' });
+    await mkdir(path.join(directory, 'images/dir.png'), { recursive: true });
+    await writeFile(
+        path.join(directory, 'src/manifest.json'),
+        JSON.stringify({
+            ...manifest,
+            screenshots: [
+                { src: 'images/DEMO.PNG' },
+                { src: '..assets/shot.png' },
+                { src: 'HTTPS://example.com/shot.PNG' },
+            ],
+        })
+    );
     await readProject(directory);
     for (const [change, message] of [
         [{ id: 'bad id' }, /plugin ID/],
@@ -80,8 +94,12 @@ test('validates the plugin ID, versions, package name, categories, and local scr
         [{ categories: ['unknown'] }, /categories/],
         [{ categories: ['editor', 'editor'] }, /categories/],
         [{ screenshots: [{}] }, /specify src/],
+        [{ screenshots: [{ src: '../outside.png' }] }, /Invalid screenshot path/],
+        [{ screenshots: [{ src: path.resolve('/abs/shot.png') }] }, /Invalid screenshot path/],
         [{ screenshots: [{ src: 'shot.svg' }] }, /Unsupported screenshot type/],
         [{ screenshots: [{ src: 'missing.png' }] }, /Screenshot not found: missing.png/],
+        [{ screenshots: [{ src: 'package.json/shot.png' }] }, /Screenshot not found: package.json\/shot.png/],
+        [{ screenshots: [{ src: 'images/dir.png' }] }, /Screenshot is not a file: images\/dir.png/],
     ]) {
         await writeFile(path.join(directory, 'src/manifest.json'), JSON.stringify({ ...manifest, ...change }));
         await assert.rejects(readProject(directory), PluginScriptsError);
@@ -93,6 +111,53 @@ test('validates the plugin ID, versions, package name, categories, and local scr
         JSON.stringify({ name: 'test', version: '1.2.3', keywords: ['joplin-plugin'] })
     );
     await assert.rejects(readProject(directory), /Package name must start with joplin-plugin-/);
+});
+
+test('rejects local screenshots that escape the project root through symlinks', async (t) => {
+    const { directory, manifest } = await projectFixture(t);
+    const outside = await mkdtemp(path.join(tmpdir(), 'joplin-screenshot-outside-'));
+    t.after(() => rm(outside, { recursive: true, force: true }));
+    await writeFiles(outside, { 'outside.png': 'png bytes' });
+    await writeFiles(directory, { 'docs/inside.png': 'png bytes' });
+    await mkdir(path.join(directory, 'images'), { recursive: true });
+
+    const dirLink = process.platform === 'win32' ? 'junction' : 'dir';
+    await symlink(outside, path.join(directory, 'images/external'), dirLink);
+    await symlink(path.join(directory, 'docs'), path.join(directory, 'images/internal'), dirLink);
+
+    await writeFile(
+        path.join(directory, 'src/manifest.json'),
+        JSON.stringify({ ...manifest, screenshots: [{ src: 'images/internal/inside.png' }] })
+    );
+    await readProject(directory);
+
+    await writeFile(
+        path.join(directory, 'src/manifest.json'),
+        JSON.stringify({ ...manifest, screenshots: [{ src: 'images/external/outside.png' }] })
+    );
+    await assert.rejects(readProject(directory), PluginScriptsError);
+    await assert.rejects(readProject(directory), /Invalid screenshot path: images\/external\/outside\.png/);
+
+    try {
+        await symlink(path.join(outside, 'outside.png'), path.join(directory, 'images/link.png'), 'file');
+    } catch (error) {
+        if (hasErrorCode(error, 'EPERM')) return;
+        throw error;
+    }
+    await writeFile(
+        path.join(directory, 'src/manifest.json'),
+        JSON.stringify({ ...manifest, screenshots: [{ src: 'images/link.png' }] })
+    );
+    await assert.rejects(readProject(directory), PluginScriptsError);
+    await assert.rejects(readProject(directory), /Invalid screenshot path: images\/link\.png/);
+
+    await symlink('loop-b.png', path.join(directory, 'images/loop-a.png'), 'file');
+    await symlink('loop-a.png', path.join(directory, 'images/loop-b.png'), 'file');
+    await writeFile(
+        path.join(directory, 'src/manifest.json'),
+        JSON.stringify({ ...manifest, screenshots: [{ src: 'images/loop-a.png' }] })
+    );
+    await assert.rejects(readProject(directory), /Screenshot not found: images\/loop-a\.png/);
 });
 
 test('rejects project JSON fields of the wrong type without a TypeError', async (t) => {

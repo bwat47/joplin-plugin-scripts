@@ -81,6 +81,9 @@ in `.npmrc` are not used.
   includes `joplin-plugin`.
 - The manifest `id` must be a string. If present, `categories` must be an array of strings,
   and `screenshots` must be an array of objects with a string `src`.
+- A local screenshot `src` (anything other than an `http://` or `https://` URL) must be a
+  relative path to a `.jpg`, `.jpeg`, `.png`, `.gif`, or `.webp` file (any letter case) of at
+  most 1 MB. It must stay inside the project root after resolving symlinks.
 
 ## Configuration
 
