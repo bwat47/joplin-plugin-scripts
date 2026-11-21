@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { lstat, mkdtemp, readdir, readFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 
+import { hasErrorCode } from '../lib/errors.mjs';
 import { archiveEntries, projectFixture, writeFiles } from './helpers.mjs';
 
 const cli = fileURLToPath(new URL('../bin/joplin-plugin-scripts.mjs', import.meta.url));
@@ -334,4 +335,66 @@ test('rejects a src asset named like the generated license file before clearing 
         assert.equal(await readFile(path.join(directory, 'publish/previous.jpl'), 'utf8'), 'previous archive');
         await rm(path.join(directory, 'src', name));
     }
+});
+
+test('copies only runtime asset files, following directory symlinks and skipping dot-entries', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'src/index.ts':
+            'declare const joplin: { plugins: { register(p: object): void } };\n' +
+            'joplin.plugins.register({ onStart: async () => undefined });\n',
+        'src/commands/command.ts': 'export {};',
+        'src/.DS_Store': 'finder metadata',
+        'src/.cache/asset.css': 'cached',
+        'src/images/icon.svg': '<svg/>',
+        'shared/theme.css': 'shared theme',
+        'shared/fonts/font.woff2': 'font',
+    });
+    const dirLink = process.platform === 'win32' ? 'junction' : 'dir';
+    await symlink(path.join(directory, 'shared'), path.join(directory, 'src/shared'), dirLink);
+    // A link to an ancestor must not recurse forever.
+    await symlink(path.join(directory, 'src'), path.join(directory, 'src/images/loop'), dirLink);
+    runCli(directory, 'build');
+
+    const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+    const expected = ['images/icon.svg', 'index.js', 'manifest.json', 'shared/fonts/font.woff2', 'shared/theme.css'];
+    assert.deepEqual(
+        entries.filter((entry) => !entry.startsWith('images/loop/')),
+        expected
+    );
+
+    // dist/ matches the archive: no empty directories, dotfiles, or symlinks.
+    const distEntries = await readdir(path.join(directory, 'dist'), { recursive: true });
+    assert.equal(distEntries.includes('commands'), false);
+    assert.equal(distEntries.includes('.DS_Store'), false);
+    assert.equal(distEntries.includes('.cache'), false);
+    for (const entry of distEntries) {
+        assert.equal((await lstat(path.join(directory, 'dist', entry))).isSymbolicLink(), false, entry);
+    }
+    assert.equal(await readFile(path.join(directory, 'dist/shared/theme.css'), 'utf8'), 'shared theme');
+});
+
+test('follows file symlinks and skips broken file symlinks when copying runtime assets', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'src/index.ts':
+            'declare const joplin: { plugins: { register(p: object): void } };\n' +
+            'joplin.plugins.register({ onStart: async () => undefined });\n',
+        'src/images/icon.svg': '<svg/>',
+        'shared/theme.css': 'shared theme',
+    });
+    try {
+        await symlink(path.join(directory, 'shared/theme.css'), path.join(directory, 'src/images/theme.css'), 'file');
+    } catch (error) {
+        // Windows needs Developer Mode or elevation for file symlinks.
+        if (hasErrorCode(error, 'EPERM')) return t.skip('file symlinks unavailable');
+        throw error;
+    }
+    await symlink(path.join(directory, 'missing.css'), path.join(directory, 'src/broken.css'), 'file');
+    runCli(directory, 'build');
+
+    const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+    assert.deepEqual(entries, ['images/icon.svg', 'images/theme.css', 'index.js', 'manifest.json']);
+    assert.equal((await lstat(path.join(directory, 'dist/images/theme.css'))).isSymbolicLink(), false);
+    assert.equal(await readFile(path.join(directory, 'dist/images/theme.css'), 'utf8'), 'shared theme');
 });
