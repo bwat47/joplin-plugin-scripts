@@ -43,9 +43,17 @@ Commands run from the plugin project root, which npm scripts do automatically.
 
 ### `build`
 
-`build [--analyze]` clears `dist/` and `publish/`, copies runtime assets from `src/`, bundles the plugin, and packages `publish/<id>.jpl` and `publish/<id>.json`. On success, it prints the archive path and version, e.g. `Created publish/com.example.plugin.jpl (v1.2.3).`
+`build [--dev] [--sourcemap] [--no-minify] [--analyze]` clears `dist/` and `publish/`, copies runtime assets from `src/`, bundles the plugin, and packages `publish/<id>.jpl` and `publish/<id>.json`. On success, it prints the archive path and version, e.g. `Created publish/com.example.plugin.jpl (v1.2.3).` (with a mode tag such as `, dev` when debug flags are active).
 
-- Pass `--analyze` (or `npm run dist -- --analyze`) to print esbuild's bundle-size breakdown for the main bundle and any `extraScripts` or `webviewScripts`. This covers esbuild-bundled outputs, not copied runtime assets.
+Flags can be combined in any order (pass them through npm with `--`, e.g. `npm run dist -- --dev`):
+
+- `--dev`: disables minification, emits inline sourcemaps for all bundles, and changes the default `process.env.NODE_ENV` from `"production"` to `"development"` (an explicit `define["process.env.NODE_ENV"]` in `plugin.config.json` still takes precedence).
+- `--sourcemap`: emits inline sourcemaps for all bundles, overriding `plugin.config.json`.
+- `--no-minify`: disables minification for all bundles, overriding `plugin.config.json`.
+- `--analyze`: prints esbuild's bundle-size breakdown for the main bundle and any `extraScripts` or `webviewScripts`. This covers esbuild-bundled outputs, not copied runtime assets.
+
+License handling:
+
 - Generates `dist/THIRD-PARTY-LICENSES.txt` when any bundled third-party package includes a standalone license or notice file.
 - `THIRD-PARTY-LICENSES.txt` is reserved: the build fails if `src/` contains a file with that name (in any letter case).
 

@@ -327,6 +327,112 @@ test('prints bundle-size analysis for all bundles when --analyze is passed', asy
     assert.throws(() => runCli(directory, 'build', '--analyze', 'extra'), /Usage: joplin-plugin-scripts/);
 });
 
+test('supports --dev to disable minification, inline sourcemaps, and default NODE_ENV to development', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({
+            extraScripts: ['contentScripts/editor.ts'],
+            webviewScripts: ['dialog/dialog.ts'],
+            buildOptions: { minify: true, sourcemap: false, define: { __CUSTOM__: '"kept"' } },
+            contentScriptBuildOptions: { define: { 'process.env.NODE_ENV': '"custom-env"' } },
+        }),
+        'src/index.ts':
+            'declare const __CUSTOM__: string;\n' +
+            'function readableMainHelper(longParameterName: string) { return `${longParameterName}:${process.env.NODE_ENV}:${__CUSTOM__}`; }\n' +
+            'export const result = readableMainHelper("main");\n',
+        'src/contentScripts/editor.ts':
+            'function readableContentHelper(longParameterName: string) { return `${longParameterName}:${process.env.NODE_ENV}`; }\n' +
+            'export default () => readableContentHelper("content");\n',
+        'src/dialog/dialog.ts':
+            'declare const window: { env?: string };\n' +
+            'function readableDialogHelper(longParameterName: string) { return `${longParameterName}:${process.env.NODE_ENV}`; }\n' +
+            'window.env = readableDialogHelper("dialog");\n',
+    });
+
+    const output = runCli(directory, 'build', '--dev', '--analyze');
+    assert.match(output, /dist\/index\.js/);
+    assert.match(
+        output,
+        new RegExp(
+            `Created ${path.join('publish', 'test.plugin.jpl').replace(/\\/g, '\\\\')} \\(v1\\.2\\.3, dev\\)\\.\n$`
+        )
+    );
+
+    // Inline sourcemaps must not add .js.map files to the archive.
+    const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+    assert.deepEqual(entries, ['contentScripts/editor.js', 'dialog/dialog.js', 'index.js', 'manifest.json']);
+
+    const mainBundle = await readFile(path.join(directory, 'dist/index.js'), 'utf8');
+    const contentBundle = await readFile(path.join(directory, 'dist/contentScripts/editor.js'), 'utf8');
+    const webviewBundle = await readFile(path.join(directory, 'dist/dialog/dialog.js'), 'utf8');
+
+    for (const [bundle, helperName] of [
+        [mainBundle, 'readableMainHelper'],
+        [contentBundle, 'readableContentHelper'],
+        [webviewBundle, 'readableDialogHelper'],
+    ]) {
+        assert.match(bundle, /sourceMappingURL=data:/);
+        assert.match(bundle, new RegExp(`function ${helperName}\\(longParameterName\\)`));
+    }
+
+    assert.match(mainBundle, /"development"/);
+    assert.match(mainBundle, /"kept"/);
+    assert.match(webviewBundle, /"development"/);
+    // Explicit NODE_ENV in plugin.config.json takes precedence over --dev's default.
+    assert.match(contentBundle, /"custom-env"/);
+    assert.doesNotMatch(contentBundle, /"development"/);
+});
+
+test('supports composable --sourcemap and --no-minify flags without changing NODE_ENV', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({
+            mainBuildOptions: {
+                minify: true,
+                minifyIdentifiers: true,
+                minifySyntax: true,
+                minifyWhitespace: true,
+                sourcemap: false,
+            },
+        }),
+        'src/index.ts':
+            'function readableHelper(longParameterName: string) { return [longParameterName, process.env.NODE_ENV, true]; }\n' +
+            'export const result = readableHelper("ok");\n',
+    });
+
+    const sourcemapOutput = runCli(directory, 'build', '--sourcemap');
+    assert.equal(sourcemapOutput, `Created ${path.join('publish', 'test.plugin.jpl')} (v1.2.3, sourcemap).\n`);
+    const sourcemapBundle = await readFile(path.join(directory, 'dist/index.js'), 'utf8');
+    assert.match(sourcemapBundle, /sourceMappingURL=data:/);
+    assert.doesNotMatch(sourcemapBundle, /longParameterName/);
+    assert.match(sourcemapBundle, /"production"/);
+
+    const noMinifyOutput = runCli(directory, 'build', '--no-minify');
+    assert.equal(noMinifyOutput, `Created ${path.join('publish', 'test.plugin.jpl')} (v1.2.3, no-minify).\n`);
+    const noMinifyBundle = await readFile(path.join(directory, 'dist/index.js'), 'utf8');
+    assert.doesNotMatch(noMinifyBundle, /sourceMappingURL/);
+    // Granular minify* config flags must all be overridden: identifiers, whitespace, and syntax (`true`, not `!0`).
+    assert.match(
+        noMinifyBundle,
+        /function readableHelper\(longParameterName\) \{\n\s+return \[longParameterName, "production", true\];/
+    );
+
+    const combinedOutput = runCli(directory, 'build', '--no-minify', '--sourcemap');
+    assert.equal(
+        combinedOutput,
+        `Created ${path.join('publish', 'test.plugin.jpl')} (v1.2.3, sourcemap, no-minify).\n`
+    );
+    const combinedBundle = await readFile(path.join(directory, 'dist/index.js'), 'utf8');
+    assert.match(combinedBundle, /sourceMappingURL=data:/);
+    assert.match(
+        combinedBundle,
+        /function readableHelper\(longParameterName\) \{\n\s+return \[longParameterName, "production", true\];/
+    );
+
+    assert.throws(() => runCli(directory, 'build', '--minify'), /Usage: joplin-plugin-scripts/);
+    assert.throws(() => runCli(directory, 'build', '--dev=true'), /Usage: joplin-plugin-scripts/);
+});
+
 test('passes an update-version argument through and rejects extra arguments', async (t) => {
     const { directory } = await projectFixture(t);
     await writeFiles(directory, {
