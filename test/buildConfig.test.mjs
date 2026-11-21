@@ -8,33 +8,11 @@ import {
     createBuildOptions,
     createContentScriptBuildOptions,
     createWebviewScriptBuildOptions,
-    isRuntimeAsset,
     readPluginConfig,
 } from '../lib/buildConfig.mjs';
 import { projectFixture } from './helpers.mjs';
 
 const root = path.resolve('/project');
-
-test('copies runtime assets while excluding TypeScript, JSX, tests, and fixtures', () => {
-    for (const relative of ['manifest.json', 'diffPreview/styles.css', 'worker.js']) {
-        assert.equal(isRuntimeAsset(root, path.join(root, 'src', relative)), true, relative);
-    }
-    for (const relative of [
-        'index.ts',
-        'view.tsx',
-        'dialog.jsx',
-        'worker.mts',
-        'config.cts',
-        'types.d.ts',
-        'render.test.js',
-        'render.spec.mjs',
-        '__tests__/example.json',
-        'formatter/fixtures',
-        'formatter/fixtures/example/input.md',
-    ]) {
-        assert.equal(isRuntimeAsset(root, path.join(root, 'src', relative)), false, relative);
-    }
-});
 
 test('reads an optional plugin config with defaults', async (t) => {
     const { directory } = await projectFixture(t);

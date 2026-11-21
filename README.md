@@ -64,9 +64,10 @@ in `.npmrc` are not used.
 - `src/manifest.json`: Joplin plugin metadata.
 - `package.json`: npm package metadata and scripts.
 - `api/`: resolved through `tsconfig.json` `paths` (`api` and `api/*`).
-- Other files in `src/` are copied to `dist/`, except TypeScript and JSX sources, `*.test.*` /
-  `*.spec.*` files, anything under `fixtures/` or `__tests__/` directories, and dotfiles or
-  dot-directories (e.g. `.DS_Store`). Only directories that contain a copied file are created.
+- Other files in `src/` are copied to `dist/`, except TypeScript and JSX sources, JavaScript test
+  files (`*.test.js` / `*.spec.js`, including `.mjs` and `.cjs`), anything under `fixtures/` or
+  `__tests__/` directories, and dotfiles or dot-directories (e.g. `.DS_Store`). Only directories
+  that contain a copied file are created.
 - Symlinks in `src/` are followed: their targets are copied as regular files and directories, so
   shared assets can be linked in. Broken links are skipped.
 

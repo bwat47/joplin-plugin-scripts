@@ -398,3 +398,26 @@ test('follows file symlinks and skips broken file symlinks when copying runtime 
     assert.equal((await lstat(path.join(directory, 'dist/images/theme.css'))).isSymbolicLink(), false);
     assert.equal(await readFile(path.join(directory, 'dist/images/theme.css'), 'utf8'), 'shared theme');
 });
+
+test('copies runtime assets while excluding TypeScript, JSX, tests, and fixtures', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'src/index.ts': 'export {};\n',
+        'src/diffPreview/styles.css': 'body {}',
+        'src/worker.js': 'self.onmessage = () => {};',
+        'src/view.tsx': 'export const view = null;',
+        'src/dialog.jsx': 'export const dialog = null;',
+        'src/worker.mts': 'export {};',
+        'src/config.cts': 'export {};',
+        'src/types.d.ts': 'export type X = string;',
+        'src/render.test.js': 'test',
+        'src/render.spec.mjs': 'test',
+        'src/helper.test.cjs': 'test',
+        'src/__tests__/example.json': '{}',
+        'src/formatter/fixtures/example/input.md': '# fixture',
+    });
+    runCli(directory, 'build');
+
+    const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+    assert.deepEqual(entries, ['diffPreview/styles.css', 'index.js', 'manifest.json', 'worker.js']);
+});
