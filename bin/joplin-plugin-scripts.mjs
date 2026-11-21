@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -21,7 +22,11 @@ Commands:
   update-version [patch|minor|major|<x.y.z>]
                   Update the version in package.json, src/manifest.json, and package-lock.json (if present):
                   increment the patch (default), minor, or major part, or set an explicit higher version
-  update-api      Replace api/ with the declarations from the latest generator-joplin`;
+  update-api      Replace api/ with the declarations from the latest generator-joplin
+
+Options:
+  -h, --help      Show this help message
+  -v, --version   Show the installed version`;
 
 /**
  * Parses CLI flags for the `build` command, returning `undefined` on invalid flags or arguments.
@@ -107,6 +112,11 @@ const commands = {
 const [command, ...args] = process.argv.slice(2);
 if (command === '--help' || command === '-h') {
     console.info(USAGE);
+    process.exit(0);
+}
+if ((command === '--version' || command === '-v') && args.length === 0) {
+    const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    console.info(version);
     process.exit(0);
 }
 const entry = Object.hasOwn(commands, command) ? commands[command] : undefined;

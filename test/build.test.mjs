@@ -266,6 +266,14 @@ test('prints usage for unknown commands', async (t) => {
     assert.match(runCli(directory, '--help'), /Commands:\n {2}build/);
 });
 
+test('prints the package version for --version and -v', async (t) => {
+    const { directory } = await projectFixture(t);
+    const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+    assert.equal(runCli(directory, '--version'), `${version}\n`);
+    assert.equal(runCli(directory, '-v'), `${version}\n`);
+    assert.throws(() => runCli(directory, '--version', 'extra'), /Usage: joplin-plugin-scripts <command>/);
+});
+
 /** Matches a stack frame line, e.g. `    at readProject (file:///lib/packagePlugin.mjs:1:1)`. */
 const STACK_FRAME_PATTERN = /^ {4}at /m;
 

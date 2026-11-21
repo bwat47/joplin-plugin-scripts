@@ -41,6 +41,8 @@ Commands run from the plugin project root, which npm scripts do automatically.
 | `update-version` | Update versions in `package.json`, `src/manifest.json`, and `package-lock.json` (if present).                              |
 | `update-api`     | Replace `api/` with the latest `generator-joplin` API and warn about category or content-script external list differences. |
 
+Run `joplin-plugin-scripts --version` (or `-v`) to print the installed `@bwat47/joplin-plugin-scripts` version. Use `--help` (or `-h`) to show usage.
+
 ### `build`
 
 `build [--dev] [--sourcemap] [--no-minify] [--analyze]` clears `dist/` and `publish/`, copies runtime assets from `src/`, bundles the plugin, and packages `publish/<id>.jpl` and `publish/<id>.json`. On success, it prints the archive path and version, e.g. `Created publish/com.example.plugin.jpl (v1.2.3).` (with a mode tag such as `, dev` when debug flags are active).
