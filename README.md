@@ -60,6 +60,8 @@ npm run updateVersion -- 2.0.0 # Set an explicit higher version
 
 ### `update-api`
 
+Run `update-api` from the plugin project root. Before contacting the registry, it checks that `package.json` includes `joplin-plugin` in its `keywords` array and that `src/manifest.json` contains a valid plugin `id`.
+
 Downloads `generator-joplin` directly from the registry in `npm_config_registry` (set by npm scripts), or `registry.npmjs.org`, and verifies its integrity hash. npm itself is not needed; registry authentication and proxy settings in `.npmrc` are not used.
 
 ## Project layout

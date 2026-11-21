@@ -142,8 +142,59 @@ function sha512Integrity(bytes) {
     return `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
 }
 
-test('downloads, verifies, and installs the latest generator API', async (t) => {
+/**
+ * Creates a plugin project with an existing API directory.
+ * @param {import('node:test').TestContext} t
+ * @returns {Promise<string>}
+ */
+async function pluginApiFixture(t) {
     const directory = await apiFixture(t);
+    await writeFiles(directory, {
+        'package.json': '{"keywords":["joplin-plugin"]}',
+        'src/manifest.json': '{"id":"test.plugin"}',
+    });
+    return directory;
+}
+
+test('preserves an unrelated project’s api directory even when its manifest has an ID', async (t) => {
+    const directory = await apiFixture(t);
+    await writeFiles(directory, {
+        'package.json': '{"name":"unrelated-app","keywords":["dashboard"]}',
+        'src/manifest.json': '{"id":"dashboard"}',
+        'api/server.js': 'existing app API',
+    });
+    const tarball = await generatorTarball(t);
+    const { fetch, requests } = fakeRegistry(tarball, sha512Integrity(tarball));
+
+    await assert.rejects(updateApi(directory, { registry: REGISTRY, fetch }), {
+        name: 'PluginScriptsError',
+        message: /package\.json.*joplin-plugin.*keywords.*plugin project root/,
+    });
+    assert.deepEqual(requests, []);
+    assert.equal(await readFile(path.join(directory, 'api/server.js'), 'utf8'), 'existing app API');
+});
+
+test('requires a valid plugin manifest even when package.json has the plugin keyword', async (t) => {
+    const directory = await pluginApiFixture(t);
+    const manifestPath = path.join(directory, 'src/manifest.json');
+    const { fetch, requests } = fakeRegistry(Buffer.alloc(0), '');
+
+    await rm(manifestPath);
+    await assert.rejects(updateApi(directory, { registry: REGISTRY, fetch }), {
+        name: 'PluginScriptsError',
+        message: /manifest\.json not found.*plugin project root/,
+    });
+    await writeFile(manifestPath, '{"id":"invalid id"}');
+    await assert.rejects(updateApi(directory, { registry: REGISTRY, fetch }), {
+        name: 'PluginScriptsError',
+        message: /manifest\.json.*valid Joplin plugin ID/,
+    });
+    assert.deepEqual(requests, []);
+    assert.equal(await readFile(path.join(directory, 'api/index.ts'), 'utf8'), 'old');
+});
+
+test('downloads, verifies, and installs the latest generator API', async (t) => {
+    const directory = await pluginApiFixture(t);
     const tarball = await generatorTarball(t);
     const { fetch, requests } = fakeRegistry(tarball, `sha1-ignored ${sha512Integrity(tarball)}`);
     assert.deepEqual(await updateApi(directory, { registry: REGISTRY, fetch }), { version: '9.9.9', warnings: [] });
@@ -153,7 +204,7 @@ test('downloads, verifies, and installs the latest generator API', async (t) => 
 });
 
 test('leaves api/ unchanged when the tarball fails its integrity check', async (t) => {
-    const directory = await apiFixture(t);
+    const directory = await pluginApiFixture(t);
     const tarball = await generatorTarball(t);
     for (const integrity of [sha512Integrity(Buffer.from('other')), '', 'sha1-abc']) {
         const { fetch } = fakeRegistry(tarball, integrity);
@@ -163,7 +214,7 @@ test('leaves api/ unchanged when the tarball fails its integrity check', async (
 });
 
 test('reports HTTP and network failures as plugin script errors', async (t) => {
-    const directory = await apiFixture(t);
+    const directory = await pluginApiFixture(t);
     const { fetch } = fakeRegistry(Buffer.alloc(0), '');
     await assert.rejects(updateApi(directory, { registry: 'https://elsewhere.test', fetch }), {
         name: 'PluginScriptsError',
@@ -180,7 +231,7 @@ test('reports HTTP and network failures as plugin script errors', async (t) => {
 });
 
 test('reports metadata and tarball body failures as plugin script errors', async (t) => {
-    const directory = await apiFixture(t);
+    const directory = await pluginApiFixture(t);
     const metadataUrl = `${REGISTRY}generator-joplin/latest`;
     for (const failedUrl of [metadataUrl, TARBALL_URL]) {
         const cause = new TypeError('terminated');
