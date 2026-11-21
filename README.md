@@ -65,9 +65,10 @@ in `.npmrc` are not used.
 - `package.json`: npm package metadata and scripts.
 - `api/`: resolved through `tsconfig.json` `paths` (`api` and `api/*`).
 - Other files in `src/` are copied to `dist/`, except TypeScript and JSX sources, JavaScript test
-  files (`*.test.js` / `*.spec.js`, including `.mjs` and `.cjs`), anything under `fixtures/` or
-  `__tests__/` directories, and dotfiles or dot-directories (e.g. `.DS_Store`). Only directories
-  that contain a copied file are created.
+  and benchmark files (`*.test.js`, `*.spec.js`, and `*.bench.js`, including `.mjs` and `.cjs`),
+  anything under `fixtures/`, `__tests__/`, `__benchmarks__/`, `__mocks__/`, `__fixtures__/`, or
+  `__snapshots__/` directories, paths listed in `excludeAssets`, and dotfiles or dot-directories
+  (e.g. `.DS_Store`). Only directories that contain a copied file are created.
 - Symlinks in `src/` are followed: their targets are copied as regular files and directories, so
   shared assets can be linked in. Broken links are skipped.
 
@@ -89,6 +90,7 @@ overrides build options:
 {
     "extraScripts": ["contentScripts/codeMirror.ts"],
     "webviewScripts": ["dialog/dialog.ts"],
+    "excludeAssets": ["testing", "contentScript/testing"],
     "buildOptions": { "target": "es2015" },
     "mainBuildOptions": { "external": ["jsdom"] },
     "contentScriptBuildOptions": { "sourcemap": "inline" },
@@ -109,6 +111,12 @@ overrides build options:
 Each listed script builds to the same path under `dist/` with a `.js` extension.
 Output paths must be unique (compared case-insensitively), and `dist/index.js` is
 reserved for the main bundle.
+
+### Excluded assets
+
+- `excludeAssets`: file or directory paths relative to `src/` to skip when copying runtime
+  assets to `dist/` (e.g. `["testing", "contentScript/testing", "testUtils"]`). Each entry
+  matches that exact path and anything inside it. `manifest.json` cannot be excluded.
 
 ### Build options
 

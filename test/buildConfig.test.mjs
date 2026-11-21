@@ -19,6 +19,7 @@ test('reads an optional plugin config with defaults', async (t) => {
     assert.deepEqual(await readPluginConfig(directory), {
         extraScripts: [],
         webviewScripts: [],
+        excludeAssets: [],
         mainBuildOptions: {},
         contentScriptBuildOptions: {},
         webviewScriptBuildOptions: {},
@@ -26,12 +27,45 @@ test('reads an optional plugin config with defaults', async (t) => {
     const config = {
         extraScripts: ['contentScripts/a.ts'],
         webviewScripts: ['dialog/b.ts'],
+        excludeAssets: ['testing', 'contentScript/testing'],
         mainBuildOptions: { external: ['jsdom'] },
         contentScriptBuildOptions: { minify: false },
         webviewScriptBuildOptions: { sourcemap: 'inline' },
     };
     await writeFile(path.join(directory, 'plugin.config.json'), JSON.stringify(config));
     assert.deepEqual(await readPluginConfig(directory), config);
+});
+
+test('normalizes excludeAssets paths and rejects invalid ones', async (t) => {
+    const { directory } = await projectFixture(t);
+    const configPath = path.join(directory, 'plugin.config.json');
+    await writeFile(
+        configPath,
+        JSON.stringify({
+            excludeAssets: ['./testing/', 'contentScript\\testing//', 'devHelper.js'],
+        })
+    );
+    const { excludeAssets } = await readPluginConfig(directory);
+    assert.deepEqual(excludeAssets, ['testing', 'contentScript/testing', 'devHelper.js']);
+
+    /** @type {[unknown, RegExp][]} */
+    const invalidCases = [
+        ['testing', /"excludeAssets" must be an array/],
+        [[1], /"excludeAssets" must be an array/],
+        [[''], /Invalid excluded asset path/],
+        [['.'], /Invalid excluded asset path/],
+        [['./'], /Invalid excluded asset path/],
+        [['../outside'], /Invalid excluded asset path/],
+        [['a/../b'], /Invalid excluded asset path/],
+        [[path.resolve('/abs/testing')], /Invalid excluded asset path/],
+        [['manifest.json'], /"excludeAssets" cannot exclude manifest\.json/],
+        [['./MANIFEST.JSON'], /"excludeAssets" cannot exclude manifest\.json/],
+    ];
+    for (const [value, message] of invalidCases) {
+        const text = JSON.stringify({ excludeAssets: value });
+        await writeFile(configPath, text);
+        await assert.rejects(readPluginConfig(directory), message, text);
+    }
 });
 
 test('explains a malformed plugin config', async (t) => {

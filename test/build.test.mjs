@@ -399,7 +399,7 @@ test('follows file symlinks and skips broken file symlinks when copying runtime 
     assert.equal(await readFile(path.join(directory, 'dist/images/theme.css'), 'utf8'), 'shared theme');
 });
 
-test('copies runtime assets while excluding TypeScript, JSX, tests, and fixtures', async (t) => {
+test('copies runtime assets while excluding TypeScript, JSX, tests, benchmarks, and fixtures', async (t) => {
     const { directory } = await projectFixture(t);
     await writeFiles(directory, {
         'src/index.ts': 'export {};\n',
@@ -413,11 +413,46 @@ test('copies runtime assets while excluding TypeScript, JSX, tests, and fixtures
         'src/render.test.js': 'test',
         'src/render.spec.mjs': 'test',
         'src/helper.test.cjs': 'test',
+        'src/render.bench.js': 'bench',
+        'src/render.bench.mjs': 'bench',
+        'src/helper.bench.cjs': 'bench',
         'src/__tests__/example.json': '{}',
+        'src/__benchmarks__/sample.md': '# bench',
+        'src/__mocks__/joplin.js': 'module.exports = {};',
+        'src/__fixtures__/sample.json': '{}',
+        'src/__snapshots__/render.test.ts.snap': 'exports = {};',
         'src/formatter/fixtures/example/input.md': '# fixture',
     });
     runCli(directory, 'build');
 
     const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
     assert.deepEqual(entries, ['diffPreview/styles.css', 'index.js', 'manifest.json', 'worker.js']);
+});
+
+test('excludes configured src-relative asset paths without affecting other locations', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({
+            excludeAssets: ['testing', 'contentScript/testing', 'devHelper.js', 'notes[1]'],
+        }),
+        'src/index.ts': 'export {};\n',
+        'src/testing/helper.js': 'module.exports = {};',
+        'src/testing/nested/data.json': '{}',
+        'src/contentScript/testing/mock.json': '{}',
+        'src/contentScript/styles.css': 'body {}',
+        'src/other/testing/keep.json': '{}',
+        'src/devHelper.js': 'console.log("dev");',
+        'src/notes[1]/scratch.txt': 'ignored',
+        'src/notes1/keep.txt': 'kept',
+    });
+    runCli(directory, 'build');
+
+    const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+    assert.deepEqual(entries, [
+        'contentScript/styles.css',
+        'index.js',
+        'manifest.json',
+        'notes1/keep.txt',
+        'other/testing/keep.json',
+    ]);
 });
