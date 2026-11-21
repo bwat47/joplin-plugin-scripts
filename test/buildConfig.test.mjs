@@ -68,6 +68,17 @@ test('normalizes excludeAssets paths and rejects invalid ones', async (t) => {
     }
 });
 
+test('normalizes script paths to / separators', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFile(
+        path.join(directory, 'plugin.config.json'),
+        JSON.stringify({ extraScripts: ['./contentScripts\\editor.ts'], webviewScripts: ['dialog//panel.mjs'] })
+    );
+    const { extraScripts, webviewScripts } = await readPluginConfig(directory);
+    assert.deepEqual(extraScripts, ['contentScripts/editor.ts']);
+    assert.deepEqual(webviewScripts, ['dialog/panel.mjs']);
+});
+
 test('explains a malformed plugin config', async (t) => {
     const { directory } = await projectFixture(t);
     const configPath = path.join(directory, 'plugin.config.json');
@@ -79,6 +90,10 @@ test('explains a malformed plugin config', async (t) => {
         [JSON.stringify({ extraScripts: 'contentScripts/a.ts' }), /"extraScripts" must be an array/],
         [JSON.stringify({ webviewScripts: [1] }), /"webviewScripts" must be an array/],
         [JSON.stringify({ extraScripts: ['a.ts'], webviewScripts: ['a.js'] }), /more than one script .*dist\/a\.js/],
+        [
+            JSON.stringify({ extraScripts: ['caf\u00e9.ts'], webviewScripts: ['cafe\u0301.js'] }),
+            /more than one script that builds to dist\/cafe\u0301\.js/,
+        ],
         [JSON.stringify({ mainBuildOptions: [] }), /"mainBuildOptions" must be an object/],
         [JSON.stringify({ mainBuildOptions: { outfile: 'x.js' } }), /cannot set outfile/],
         [JSON.stringify({ mainBuildOptions: { write: false } }), /cannot set write/],
@@ -357,7 +372,31 @@ test('maps content scripts to dist and rejects paths outside src', () => {
         assert.deepEqual(built.entryPoints, [`src/${script}`], script);
         assert.equal(built.outfile, 'dist/contentScripts/script.js', script);
     }
-    for (const script of ['../outside.ts', path.resolve('/abs.ts'), 'styles.css', 'bad.mtsx', 'bad.cjsx']) {
-        assert.throws(() => createContentScriptBuildOptions(root, script), /Invalid extra script path/, script);
+    for (const script of ['../outside.ts', path.resolve('/abs.ts'), '\\abs.ts', 'styles.css', 'bad.mtsx', 'bad.cjsx']) {
+        assert.throws(() => createContentScriptBuildOptions(root, script), /Invalid script path/, script);
+    }
+});
+
+test('normalizes script paths for direct callers as readPluginConfig does', () => {
+    for (const create of [createContentScriptBuildOptions, createWebviewScriptBuildOptions]) {
+        const options = create(root, './contentScripts\\nested//editor.ts');
+        assert.deepEqual(options.entryPoints, ['src/contentScripts/nested/editor.ts'], create.name);
+        assert.equal(options.outfile, 'dist/contentScripts/nested/editor.js', create.name);
+    }
+});
+
+test('rejects script paths Windows cannot extract', async (t) => {
+    const { directory } = await projectFixture(t);
+    for (const [script, expected] of /** @type {[string, RegExp][]} */ ([
+        [
+            'a:b.ts',
+            /Script path a:b\.ts cannot be extracted on Windows because of the name "a:b\.ts" \(.*\); rename the script\./,
+        ],
+        ['con.ts', /Script path con\.ts cannot be extracted on Windows because of the name "con\.ts"/],
+        ['dir./a.ts', /Script path dir\.\/a\.ts cannot be extracted on Windows because of the name "dir\."/],
+    ])) {
+        assert.throws(() => createContentScriptBuildOptions(root, script), expected, script);
+        await writeFile(path.join(directory, 'plugin.config.json'), JSON.stringify({ webviewScripts: [script] }));
+        await assert.rejects(readPluginConfig(directory), expected, script);
     }
 });

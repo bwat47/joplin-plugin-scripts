@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { lstat, mkdtemp, readdir, readFile, rm, symlink } from 'node:fs/promises';
+import { lstat, mkdtemp, readdir, readFile, rm, stat, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -138,23 +138,18 @@ test('bundles .mts, .cts, .mjs, and .cjs entry points to .js without copying the
     ]);
 });
 
-test(
-    'preserves literal backslashes when excluding bundled scripts on POSIX',
-    { skip: process.platform === 'win32' },
-    async (t) => {
-        const { directory } = await projectFixture(t);
-        await writeFiles(directory, {
-            'plugin.config.json': JSON.stringify({ webviewScripts: ['dialog\\panel.mjs'] }),
-            'src/index.ts': 'export {};\n',
-            'src/dialog\\panel.mjs': 'window.panel = true;\n',
-            'src/dialog/panel.mjs': 'export const standalone = true;\n',
-        });
-        runCli(directory, 'build');
+test('treats backslashes in script paths as separators on every platform', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({ webviewScripts: ['dialog\\panel.mjs'] }),
+        'src/index.ts': 'export {};\n',
+        'src/dialog/panel.mjs': 'window.panel = true;\n',
+    });
+    runCli(directory, 'build');
 
-        const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
-        assert.deepEqual(entries, ['dialog/panel.mjs', 'dialog\\panel.js', 'index.js', 'manifest.json']);
-    }
-);
+    const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+    assert.deepEqual(entries, ['dialog/panel.js', 'index.js', 'manifest.json']);
+});
 
 test('applies content-script and webview-script build options only to their own scripts', async (t) => {
     const { directory } = await projectFixture(t);
@@ -247,7 +242,7 @@ test('rejects colliding script outputs before clearing existing bundles', async 
         [{ extraScripts: ['scripts/editor.ts'], webviewScripts: ['./scripts//editor.jsx'] }, duplicate],
         [{ extraScripts: ['scripts/editor.ts'], webviewScripts: ['scripts\\EDITOR.js'] }, duplicate],
         // A malformed path is reported as invalid, not as the collision it normalizes to.
-        [{ extraScripts: ['a/../index.ts'] }, /Invalid extra script path/],
+        [{ extraScripts: ['a/../index.ts'] }, /Invalid script path/],
     ];
     for (const [config, expected] of cases) {
         await writeFiles(directory, {
@@ -512,18 +507,392 @@ test('bundles standalone third-party package licenses into THIRD-PARTY-LICENSES.
     assert.doesNotMatch(licenses, /Unused license/);
 });
 
+/**
+ * Asserts that `build` fails with `expected` and leaves the previous `dist/` and `publish/` output untouched.
+ * @param {string} directory Fixture project, as created by `projectFixture`.
+ * @param {RegExp} expected
+ * @param {string} [message]
+ */
+async function assertBuildFailsKeepingOutput(directory, expected, message) {
+    await writeFiles(directory, { 'publish/previous.jpl': 'previous archive' });
+    assert.throws(() => runCli(directory, 'build'), expected, message);
+    assert.equal(await readFile(path.join(directory, 'dist/index.js'), 'utf8'), '/* bundled plugin */', message);
+    assert.equal(await readFile(path.join(directory, 'publish/previous.jpl'), 'utf8'), 'previous archive', message);
+}
+
 test('rejects a src asset named like the generated license file before clearing existing output', async (t) => {
-    const { directory } = await projectFixture(t);
     for (const name of ['THIRD-PARTY-LICENSES.txt', 'third-party-licenses.TXT']) {
-        await writeFiles(directory, {
-            [`src/${name}`]: 'Hand-written licenses\n',
-            'publish/previous.jpl': 'previous archive',
-        });
-        assert.throws(() => runCli(directory, 'build'), /conflicts with the generated dist\/THIRD-PARTY-LICENSES\.txt/);
-        assert.equal(await readFile(path.join(directory, 'dist/index.js'), 'utf8'), '/* bundled plugin */');
-        assert.equal(await readFile(path.join(directory, 'publish/previous.jpl'), 'utf8'), 'previous archive');
-        await rm(path.join(directory, 'src', name));
+        const { directory } = await projectFixture(t);
+        await writeFiles(directory, { 'src/index.ts': 'export {};\n', [`src/${name}`]: 'Hand-written licenses\n' });
+        await assertBuildFailsKeepingOutput(
+            directory,
+            /conflicts with the generated dist\/THIRD-PARTY-LICENSES\.txt.*; rename it or add it to excludeAssets in plugin\.config\.json\./,
+            name
+        );
     }
+});
+
+test('leaves existing output untouched when bundling fails', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, { 'src/index.ts': 'export const broken = ;\n' });
+    await assertBuildFailsKeepingOutput(directory, /Bundling failed/);
+});
+
+test('rejects src assets that collide with generated files before clearing existing output', async (t) => {
+    const editor = { 'src/contentScripts/editor.ts': 'export default () => ({ plugin: () => "editor" });\n' };
+    const styled = { 'src/index.ts': "import './styles.css';\n", 'src/styles.css': 'a { color: red; }\n' };
+    const cases = [
+        [
+            {},
+            { 'src/Index.js': '' },
+            /src\/Index\.js conflicts with the generated dist\/index\.js \(from src\/index\.ts\) \(names that differ only in letter case/,
+        ],
+        [
+            { extraScripts: ['contentScripts/editor.ts'] },
+            { ...editor, 'src/contentScripts/Editor.js': '' },
+            /src\/contentScripts\/Editor\.js conflicts with the generated dist\/contentScripts\/editor\.js \(from src\/contentScripts\/editor\.ts\) \(names that differ only in letter case/,
+        ],
+        [
+            { webviewScripts: ['dialog/panel.mjs'] },
+            { 'src/dialog/panel.mjs': 'window.panel = true;\n', 'src/dialog/Panel.js': '' },
+            /src\/dialog\/Panel\.js conflicts with the generated dist\/dialog\/panel\.js/,
+        ],
+        [
+            {},
+            { 'src/Third-Party-Licenses.txt/notes.md': '' },
+            /the directory src\/Third-Party-Licenses\.txt\/ conflicts with the generated dist\/THIRD-PARTY-LICENSES\.txt \(names that differ only in letter case or Unicode form can name one file on Windows or macOS\); rename it or add it to excludeAssets in plugin\.config\.json\./,
+        ],
+        [
+            {},
+            { 'src/index.js/readme.md': '' },
+            /the directory src\/index\.js\/ conflicts with the generated dist\/index\.js \(from src\/index\.ts\); rename it or add it to excludeAssets in plugin\.config\.json\./,
+        ],
+        // Files esbuild generates besides the `.js` bundle are checked too.
+        [
+            {},
+            { ...styled, 'src/index.css/notes.txt': '' },
+            /the directory src\/index\.css\/ conflicts with the generated dist\/index\.css \(from src\/index\.ts\); rename it or add it to excludeAssets in plugin\.config\.json\./,
+        ],
+        [
+            {},
+            { ...styled, 'src/Index.css': '' },
+            /src\/Index\.css conflicts with the generated dist\/index\.css \(from src\/index\.ts\) \(names that differ only in letter case/,
+        ],
+        [
+            { mainBuildOptions: { loader: { '.png': 'file' }, assetNames: 'img/[name]' } },
+            {
+                'src/index.ts': "import logo from './logo.png';\nexport { logo };\n",
+                'src/logo.png': 'image',
+                'src/Img/other.png': 'other',
+            },
+            /the directory src\/Img\/ conflicts with the directory dist\/img\/ \(from src\/index\.ts\) \(names that differ only in letter case or Unicode form can name one file on Windows or macOS\); rename it or add it to excludeAssets in plugin\.config\.json\./,
+        ],
+    ];
+    for (const [config, files, expected] of /** @type {[object, Record<string, string>, RegExp][]} */ (cases)) {
+        const { directory } = await projectFixture(t);
+        await writeFiles(directory, {
+            'plugin.config.json': JSON.stringify(config),
+            'src/index.ts': 'export {};\n',
+            ...files,
+        });
+        await assertBuildFailsKeepingOutput(directory, expected, Object.keys(files).join(', '));
+    }
+});
+
+test('rejects generated files that collide across bundles, conflict with manifest.json, or leave dist/', async (t) => {
+    const fileAssets = { loader: { '.png': 'file' }, assetNames: '[name]' };
+    const twoLogos = (/** @type {string} */ first, /** @type {string} */ second) => ({
+        'src/index.ts': `import logo from './a/${first}';\nexport { logo };\n`,
+        'src/editor.ts': `import logo from './b/${second}';\nexport default () => ({ plugin: () => logo });\n`,
+        [`src/a/${first}`]: 'first image',
+        [`src/b/${second}`]: 'second image',
+    });
+    const cases = [
+        [
+            { buildOptions: fileAssets, extraScripts: ['editor.ts'] },
+            twoLogos('logo.png', 'logo.png'),
+            /The bundles for src\/index\.ts and src\/editor\.ts both generate dist\/logo\.png, with different contents/,
+        ],
+        [
+            { buildOptions: fileAssets, extraScripts: ['editor.ts'] },
+            twoLogos('Logo.png', 'logo.png'),
+            /the generated dist\/logo\.png \(from src\/editor\.ts\) conflicts with the generated dist\/Logo\.png \(from src\/index\.ts\) \(names that differ only in letter case or Unicode form can name one file on Windows or macOS\); check the build options/,
+        ],
+        [
+            {
+                buildOptions: { loader: { '.png': 'file' } },
+                mainBuildOptions: { assetNames: 'Img/[name]' },
+                contentScriptBuildOptions: { assetNames: 'img/[name]' },
+                extraScripts: ['editor.ts'],
+            },
+            twoLogos('a.png', 'b.png'),
+            /the directory dist\/img\/ \(from src\/editor\.ts\) conflicts with the directory dist\/Img\/ \(from src\/index\.ts\) \(names that differ only in letter case or Unicode form can name one file on Windows or macOS\); check the build options/,
+        ],
+        [
+            {
+                buildOptions: { loader: { '.png': 'file' } },
+                mainBuildOptions: { assetNames: 'caf\u00e9/[name]' },
+                contentScriptBuildOptions: { assetNames: 'cafe\u0301/[name]' },
+                extraScripts: ['editor.ts'],
+            },
+            twoLogos('a.png', 'b.png'),
+            /the directory dist\/cafe\u0301\/ \(from src\/editor\.ts\) conflicts with the directory dist\/caf\u00e9\/ \(from src\/index\.ts\) \(names that differ only in letter case or Unicode form can name one file on Windows or macOS\); check the build options/,
+        ],
+        [
+            { mainBuildOptions: { loader: { '.json': 'file' }, assetNames: '[name]' } },
+            {
+                'src/index.ts': "import other from './sub/manifest.json';\nexport { other };\n",
+                'src/sub/manifest.json': '{"id":"other"}\n',
+            },
+            /the generated dist\/manifest\.json \(from src\/index\.ts\) conflicts with src\/manifest\.json; check the build options/,
+        ],
+        [
+            { mainBuildOptions: { loader: { '.json': 'file' }, assetNames: '[name]' } },
+            {
+                'src/index.ts': "import other from './sub/Manifest.json';\nexport { other };\n",
+                'src/sub/Manifest.json': '{"id":"other"}\n',
+            },
+            /the generated dist\/Manifest\.json \(from src\/index\.ts\) conflicts with src\/manifest\.json \(names that differ only in letter case or Unicode form can name one file on Windows or macOS\); check the build options/,
+        ],
+        [
+            { mainBuildOptions: { loader: { '.png': 'file' }, assetNames: '../escaped/[name]' } },
+            { 'src/index.ts': "import logo from './logo.png';\nexport { logo };\n", 'src/logo.png': 'image' },
+            /The bundle for src\/index\.ts generates .*escaped.logo\.png, outside dist\//,
+        ],
+    ];
+    for (const [config, files, expected] of /** @type {[object, Record<string, string>, RegExp][]} */ (cases)) {
+        const { directory } = await projectFixture(t);
+        await writeFiles(directory, { 'plugin.config.json': JSON.stringify(config), ...files });
+        await assertBuildFailsKeepingOutput(directory, expected, JSON.stringify(config));
+    }
+});
+
+test(
+    'rejects src assets and generated files with names Windows cannot extract',
+    { skip: process.platform === 'win32' && 'Windows cannot create these file names' },
+    async (t) => {
+        const excludable = 'rename it or add it to excludeAssets in plugin\\.config\\.json\\.';
+        const cases = [
+            [
+                {},
+                { 'src/img\\logo.png': 'image' },
+                /src\/img\\logo\.png cannot be extracted on Windows because of the name "img\\\\logo\.png" \(.*\); rename it\./,
+            ],
+            [
+                {},
+                { 'src/img/a:b.png': 'image' },
+                new RegExp(
+                    `src/img/a:b\\.png cannot be extracted on Windows because of the name "a:b\\.png" .*; ${excludable}`
+                ),
+            ],
+            [
+                {},
+                { 'src/notes /a.txt': '' },
+                new RegExp(
+                    `src/notes /a\\.txt cannot be extracted on Windows because of the name "notes " .*; ${excludable}`
+                ),
+            ],
+            [
+                {},
+                { 'src/aux.json': '{}' },
+                new RegExp(
+                    `src/aux\\.json cannot be extracted on Windows because of the name "aux\\.json" .*; ${excludable}`
+                ),
+            ],
+            [
+                // esbuild turns backslashes in `[dir]` and in the template into `/`, but keeps them in `[name]`.
+                { mainBuildOptions: { loader: { '.png': 'file' }, assetNames: '[name]' } },
+                {
+                    'src/index.ts': "import logo from './x\\\\y.png';\nexport { logo };\n",
+                    'src/x\\y.png': 'image',
+                },
+                /The bundle for src\/index\.ts generates dist\/x\\y\.png, which cannot be extracted on Windows because of the name "x\\\\y\.png"/,
+            ],
+            [
+                { mainBuildOptions: { loader: { '.png': 'file' }, assetNames: '[name]' } },
+                { 'src/index.ts': "import logo from './x?y.png';\nexport { logo };\n", 'src/x?y.png': 'image' },
+                /The bundle for src\/index\.ts generates dist\/x\?y\.png, which cannot be extracted on Windows because of the name "x\?y\.png"/,
+            ],
+        ];
+        for (const [config, files, expected] of /** @type {[object, Record<string, string>, RegExp][]} */ (cases)) {
+            const { directory } = await projectFixture(t);
+            await writeFiles(directory, {
+                'plugin.config.json': JSON.stringify(config),
+                'src/index.ts': 'export {};\n',
+                ...files,
+            });
+            await assertBuildFailsKeepingOutput(directory, expected, Object.keys(files).join(', '));
+        }
+    }
+);
+
+test(
+    'skips excluded src assets with names Windows cannot extract',
+    { skip: process.platform === 'win32' && 'Windows cannot create these file names' },
+    async (t) => {
+        const { directory } = await projectFixture(t);
+        await writeFiles(directory, {
+            'plugin.config.json': JSON.stringify({ excludeAssets: ['img/a:b.png', 'CON'] }),
+            'src/index.ts': 'export {};\n',
+            'src/img/a:b.png': 'image',
+            'src/CON/notes.txt': '',
+        });
+        runCli(directory, 'build');
+
+        const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+        assert.deepEqual(entries, ['index.js', 'manifest.json']);
+    }
+);
+
+/**
+ * Returns whether the temporary directory's file system keeps `name` and `variant` apart. If it
+ * doesn't, marks `t` as skipped, since fixtures with both names cannot be created there.
+ * @param {import('node:test').TestContext} t
+ * @param {string} name
+ * @param {string} variant A name that some file systems treat as `name`.
+ * @param {string} reason Why the test is skipped otherwise.
+ * @returns {Promise<boolean>}
+ */
+async function requireDistinctFileNames(t, name, variant, reason) {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, { [name]: '' });
+    const same = await stat(path.join(directory, variant)).then(
+        () => true,
+        () => false
+    );
+    if (same) t.skip(reason);
+    return !same;
+}
+
+/**
+ * Like `requireDistinctFileNames`, for names that differ only in letter case.
+ * @param {import('node:test').TestContext} t
+ * @returns {Promise<boolean>}
+ */
+function requireCaseSensitiveFileSystem(t) {
+    return requireDistinctFileNames(t, 'probe.txt', 'PROBE.txt', 'needs a case-sensitive file system');
+}
+
+test('rejects a src asset named like a generated directory without case', async (t) => {
+    if (!(await requireCaseSensitiveFileSystem(t))) return;
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({ extraScripts: ['contentScripts/editor.ts'] }),
+        'src/index.ts': 'export {};\n',
+        'src/contentScripts/editor.ts': 'export default () => ({ plugin: () => "editor" });\n',
+        'src/ContentScripts': '',
+    });
+    await assertBuildFailsKeepingOutput(
+        directory,
+        /src\/ContentScripts conflicts with the directory dist\/contentScripts\/ \(from src\/contentScripts\/editor\.ts\) \(names that differ only in letter case/
+    );
+});
+
+test('rejects src assets that collide with each other without case', async (t) => {
+    if (!(await requireCaseSensitiveFileSystem(t))) return;
+    const cases = [
+        [
+            ['src/img/Logo.png', 'src/img/logo.png'],
+            /src\/img\/logo\.png conflicts with src\/img\/Logo\.png \(names that differ only in letter case/,
+        ],
+        [
+            ['src/Manifest.json'],
+            /src\/Manifest\.json conflicts with src\/manifest\.json \(names that differ only in letter case or Unicode form can name one file on Windows or macOS\); rename it or add it to excludeAssets in plugin\.config\.json\./,
+        ],
+        [
+            ['src/assets', 'src/Assets/theme.css'],
+            /src\/assets conflicts with the directory src\/Assets\/ \(names that differ only in letter case/,
+        ],
+        [
+            ['src/Img/a.png', 'src/img/b.png'],
+            /the directory src\/img\/ conflicts with the directory src\/Img\/ \(names that differ only in letter case or Unicode form can name one file on Windows or macOS\); rename it or add it to excludeAssets in plugin\.config\.json\./,
+        ],
+    ];
+    for (const [assets, expected] of /** @type {[string[], RegExp][]} */ (cases)) {
+        const { directory } = await projectFixture(t);
+        await writeFiles(directory, {
+            'src/index.ts': 'export {};\n',
+            ...Object.fromEntries(assets.map((asset) => [asset, 'asset\n'])),
+        });
+        await assertBuildFailsKeepingOutput(directory, expected, assets.join(', '));
+    }
+});
+
+test('rejects src assets whose names differ only in Unicode normalization', async (t) => {
+    const nfc = 'café.png';
+    const nfd = 'café.png';
+    if (!(await requireDistinctFileNames(t, nfc, nfd, 'needs a normalization-sensitive file system'))) return;
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, { 'src/index.ts': 'export {};\n', [`src/${nfc}`]: 'one', [`src/${nfd}`]: 'two' });
+    await assertBuildFailsKeepingOutput(
+        directory,
+        new RegExp(
+            `src/${nfc} conflicts with src/${nfd} \\(names that differ only in letter case or Unicode form can name one file on Windows or macOS\\)`
+        )
+    );
+});
+
+test('writes generated files, replacing src assets at the same paths and sharing identical files', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({
+            buildOptions: { loader: { '.png': 'file' }, assetNames: '[name]' },
+            mainBuildOptions: { sourcemap: 'external' },
+            extraScripts: ['editor.ts'],
+            webviewScripts: ['webview/panel.ts'],
+            excludeAssets: ['Index.js'],
+        }),
+        'src/index.ts': "import './styles.css';\nimport logo from './img/logo.png';\nexport { logo };\n",
+        'src/styles.css': 'a { color: red; }\n',
+        'src/index.css': 'stale\n',
+        'src/index.js.map': 'stale\n',
+        'src/webview/panel.ts': "import './panel.css';\n",
+        'src/webview/panel.css': 'b { color: blue; }\n',
+        'src/img/logo.png': 'image',
+        'src/Index.js': 'stray\n',
+        'src/editor.ts': "import logo from './img/logo.png';\nexport default () => ({ plugin: () => logo });\n",
+        'src/editor.js': 'stray\n',
+    });
+    runCli(directory, 'build');
+
+    const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+    assert.deepEqual(entries, [
+        'editor.js',
+        'img/logo.png',
+        'index.css',
+        'index.css.map',
+        'index.js',
+        'index.js.map',
+        'logo.png',
+        'manifest.json',
+        'styles.css',
+        'webview/panel.css',
+        'webview/panel.js',
+    ]);
+    assert.match(await readFile(path.join(directory, 'dist/editor.js'), 'utf8'), /logo\.png/);
+    assert.match(await readFile(path.join(directory, 'dist/index.css'), 'utf8'), /color/);
+    assert.match(await readFile(path.join(directory, 'dist/index.js.map'), 'utf8'), /"mappings"/);
+    // A bundle replaces the CSS it imports at its own output path, rather than failing the build.
+    const panelCss = await readFile(path.join(directory, 'dist/webview/panel.css'), 'utf8');
+    assert.match(panelCss, /^b\s*\{/);
+    assert.notEqual(panelCss, 'b { color: blue; }\n');
+    assert.equal(await readFile(path.join(directory, 'dist/logo.png'), 'utf8'), 'image');
+});
+
+test('writes a src asset once when a bundle generates an identical file at its path', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({
+            buildOptions: { loader: { '.png': 'file' }, assetNames: '[dir]/[name]' },
+        }),
+        'src/index.ts': "import logo from './img/logo.png';\nexport { logo };\n",
+        'src/img/logo.png': 'image',
+    });
+    runCli(directory, 'build');
+
+    const entries = await archiveEntries(path.join(directory, 'publish/test.plugin.jpl'));
+    assert.deepEqual(entries, ['img/logo.png', 'index.js', 'manifest.json']);
+    assert.equal(await readFile(path.join(directory, 'dist/img/logo.png'), 'utf8'), 'image');
 });
 
 test('copies only runtime asset files, following directory symlinks and skipping dot-entries', async (t) => {

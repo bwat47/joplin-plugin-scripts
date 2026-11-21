@@ -45,7 +45,7 @@ Run `joplin-plugin-scripts --version` (or `-v`) to print the installed `@bwat47/
 
 ### `build`
 
-`build [--dev] [--sourcemap] [--no-minify] [--analyze]` clears `dist/` and `publish/`, copies runtime assets from `src/`, bundles the plugin, and packages `publish/<id>.jpl` and `publish/<id>.json`. On success, it prints the archive path and version, e.g. `Created publish/com.example.plugin.jpl (v1.2.3).` (with a mode tag such as `, dev` when debug flags are active).
+`build [--dev] [--sourcemap] [--no-minify] [--analyze]` bundles the plugin, copies runtime assets from `src/` to `dist/`, and packages `publish/<id>.jpl` and `publish/<id>.json`. Validation and bundling run before `dist/` and `publish/` are cleared, so failed builds leave previous outputs untouched. On success, it prints the archive path and version, e.g. `Created publish/com.example.plugin.jpl (v1.2.3).` (with a mode tag such as `, dev` when debug flags are active).
 
 Flags can be combined in any order (pass them through npm with `--`, e.g. `npm run dist -- --dev`):
 
@@ -57,7 +57,7 @@ Flags can be combined in any order (pass them through npm with `--`, e.g. `npm r
 License handling:
 
 - Generates `dist/THIRD-PARTY-LICENSES.txt` when any bundled third-party package includes a standalone license or notice file.
-- `THIRD-PARTY-LICENSES.txt` is reserved: the build fails if `src/` contains a file with that name (in any letter case).
+- `THIRD-PARTY-LICENSES.txt` is reserved: the build fails if `src/` contains a file or directory with that name (in any letter case) that would be copied.
 
 ### `update-version`
 
@@ -95,6 +95,8 @@ Other files in `src/` are copied to `dist/` (only directories containing a copie
 
 Symlinks in `src/` are followed: their targets are copied as regular files and directories, so shared assets can be linked in. Broken links are skipped.
 
+Generated bundle files (bundles, imported CSS, sourcemaps, and `file`-loader assets) replace runtime assets at the exact same `dist/` path, except `manifest.json`. To keep archives portable across Windows, macOS, and Linux, the build fails on conflicting `dist/` paths (including case-only, Unicode-equivalent, file/directory, or differing multi-bundle outputs), bundle outputs outside `dist/`, or names Windows cannot extract. Rename the conflicting asset or add it to [`excludeAssets`](#excluded-assets).
+
 ### Project requirements
 
 - `src/manifest.json` and `package.json` must each contain a JSON object with a non-empty string `version`, and the versions must match.
@@ -123,7 +125,7 @@ An optional `plugin.config.json` at the project root registers extra scripts and
 - `extraScripts`: content scripts registered with `joplin.contentScripts.register` (CodeMirror and Markdown-it plugins), relative to `src/`.
 - `webviewScripts`: scripts loaded into a dialog or panel with `addScript`, relative to `src/`. Each must initialize itself. Plain `.js`, `.mjs`, and `.cjs` files in `src/` are copied automatically and don't need listing if they already work as standalone scripts. List them here if they need dependency bundling or syntax transformation.
 
-Both lists accept `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.mts`, `.cts`, and `.tsx` files. Each listed script builds to the same path under `dist/` with a `.js` extension. Output paths must be unique (compared case-insensitively), and `dist/index.js` is reserved for the main bundle.
+Both lists accept `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.mts`, `.cts`, and `.tsx` files. Each listed script builds to the same path under `dist/` with a `.js` extension. Output paths must be unique (case-insensitively and across Unicode normalizations), and `dist/index.js` is reserved for the main bundle. Script and `excludeAssets` paths accept `/` or `\` separators on all platforms and are normalized to `/`.
 
 ### Excluded assets
 
