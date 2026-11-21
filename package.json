@@ -32,7 +32,9 @@
         "typecheck": "tsc --project tsconfig.json",
         "build:types": "node -e \"require('node:fs').rmSync('types', { recursive: true, force: true })\" && tsc --project tsconfig.build.json",
         "prepack": "npm run build:types",
-        "lint": "oxlint",
+        "lint": "oxlint && npm run lint:dead-code && npm run lint:complexity",
+        "lint:dead-code": "fallow dead-code",
+        "lint:complexity": "fallow health --complexity",
         "lint:fix": "oxlint --fix",
         "format": "oxfmt --write",
         "format:check": "oxfmt --check",
@@ -45,6 +47,7 @@
     },
     "devDependencies": {
         "@types/node": "^22.20.5",
+        "fallow": "^3.46.0",
         "oxfmt": "^0.78.0",
         "oxlint": "^1.93.0",
         "typescript": "^7.0.2"

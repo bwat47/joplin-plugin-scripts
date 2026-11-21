@@ -237,7 +237,7 @@ The `create*BuildOptions` functions always keep their own entry point, output fi
 ```sh
 npm test
 npm run typecheck
-npm run lint
+npm run lint            # Oxlint, plus fallow dead-code and complexity checks
 npm run format
 ```
 

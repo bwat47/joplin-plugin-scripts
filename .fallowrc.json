@@ -1,0 +1,11 @@
+{
+    "$schema": "./node_modules/fallow/schema.json",
+    "rules": {
+        "complexity-crap": "off"
+    },
+    "health": {
+        "ignore": ["test/**", "scripts/**"],
+        "maxCognitive": 15,
+        "maxCyclomatic": 20
+    }
+}

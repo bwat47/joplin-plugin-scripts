@@ -17,7 +17,11 @@ Shared build, packaging, version, and API-update scripts for Joplin plugins, pub
 - Tests use the built-in `node:test` runner and `node:assert`. Don't add another test framework.
 - Expected, user-facing failures throw `PluginScriptsError` (`lib/errors.mjs`); the CLI prints
   those without a stack trace. Anything else counts as a bug and is rethrown.
-- Linting is Oxlint (`.oxlintrc.json`, including its JSDoc plugin). Formatting is Oxfmt
+- Linting is Oxlint (`.oxlintrc.json`, including its JSDoc plugin). `npm run lint` also runs fallow
+  (`.fallowrc.json`): `lint:dead-code` finds unused files, exports, and dependencies, and
+  `lint:complexity` limits functions in `lib/` and `bin/` to cognitive complexity 15 and
+  cyclomatic 20. Split a function that exceeds them rather than raising the limits or adding
+  `fallow-ignore` comments. Formatting is Oxfmt
   (`.oxfmtrc.json`: 4 spaces, single quotes, 120 columns, sorted imports). Run `npm run format`
   instead of formatting by hand.
 - This is a shared package used by several plugins: treat changes to CLI commands, config options,
