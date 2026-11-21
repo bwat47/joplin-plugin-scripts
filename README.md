@@ -190,6 +190,7 @@ External packages remain runtime imports and are not included in the archive, so
 esbuild handles TypeScript, JSX, CSS, and JSON imports itself, and the `loader` option covers raw text and binary assets (e.g. `{ ".svg": "text", ".woff2": "dataurl" }`). Note these differences from common Webpack setups:
 
 - A bundle that imports CSS writes it to a `.css` file next to the bundle, e.g. `dist/dialog/dialog.css`, instead of injecting it like `style-loader`. Load it in the dialog or panel with `addScript`.
+- Imported non-TypeScript assets in `src/` (such as `.css`, `.json`, or `loader`-handled files) are still copied to `dist/` by [Asset copying](#asset-copying); add them to [`excludeAssets`](#excluded-assets) if they are only used through imports.
 - esbuild plugins cannot be configured. For Sass, Tailwind, or similar tools, run the tool before the build and write its output into `src/` (and add that output to `.gitignore`). The build then copies the output to `dist/`. Output written directly to `dist/` is deleted.
 
 See [Build options](#build-options) for shared and per-bundle settings and restrictions.
