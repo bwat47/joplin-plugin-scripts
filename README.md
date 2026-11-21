@@ -43,8 +43,9 @@ Commands run from the plugin project root, which npm scripts do automatically.
 
 ### `build`
 
-Clears `dist/` and `publish/`, copies runtime assets from `src/`, bundles the plugin, and packages `publish/<id>.jpl` and `publish/<id>.json`. On success, it prints the archive path and version, e.g. `Created publish/com.example.plugin.jpl (v1.2.3).`
+`build [--analyze]` clears `dist/` and `publish/`, copies runtime assets from `src/`, bundles the plugin, and packages `publish/<id>.jpl` and `publish/<id>.json`. On success, it prints the archive path and version, e.g. `Created publish/com.example.plugin.jpl (v1.2.3).`
 
+- Pass `--analyze` (or `npm run dist -- --analyze`) to print esbuild's bundle-size breakdown for the main bundle and any `extraScripts` or `webviewScripts`. This covers esbuild-bundled outputs, not copied runtime assets.
 - Generates `dist/THIRD-PARTY-LICENSES.txt` when any bundled third-party package includes a standalone license or notice file.
 - `THIRD-PARTY-LICENSES.txt` is reserved: the build fails if `src/` contains a file with that name (in any letter case).
 

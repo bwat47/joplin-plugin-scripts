@@ -298,6 +298,35 @@ test('reports expected failures with a message and no stack trace', async (t) =>
     }
 });
 
+test('prints bundle-size analysis for all bundles when --analyze is passed', async (t) => {
+    const { directory } = await projectFixture(t);
+    await writeFiles(directory, {
+        'plugin.config.json': JSON.stringify({
+            extraScripts: ['contentScripts/editor.ts'],
+            webviewScripts: ['dialog/dialog.ts'],
+        }),
+        'src/index.ts': "import { helper } from './helper';\nexport const value = helper();\n",
+        'src/helper.ts': "export const helper = () => 'hello';\n",
+        'src/contentScripts/editor.ts': 'export default () => ({ plugin: () => "editor" });\n',
+        'src/dialog/dialog.ts': 'declare const window: { ready: boolean };\nwindow.ready = true;\n',
+    });
+
+    const output = runCli(directory, 'build', '--analyze');
+    assert.match(output, /dist\/index\.js/);
+    assert.match(output, /src\/helper\.ts/);
+    assert.match(output, /dist\/contentScripts\/editor\.js/);
+    assert.match(output, /dist\/dialog\/dialog\.js/);
+    assert.match(
+        output,
+        new RegExp(`Created ${path.join('publish', 'test.plugin.jpl').replace(/\\/g, '\\\\')} \\(v1\\.2\\.3\\)\\.\n$`)
+    );
+    // Non-TTY stdout must not contain ANSI escape sequences.
+    assert.equal(output.includes('\u001b['), false);
+
+    assert.throws(() => runCli(directory, 'build', '--unknown'), /Usage: joplin-plugin-scripts/);
+    assert.throws(() => runCli(directory, 'build', '--analyze', 'extra'), /Usage: joplin-plugin-scripts/);
+});
+
 test('passes an update-version argument through and rejects extra arguments', async (t) => {
     const { directory } = await projectFixture(t);
     await writeFiles(directory, {

@@ -11,7 +11,9 @@ const USAGE = `Usage: joplin-plugin-scripts <command> [argument]
 Run from a Joplin plugin project root (npm scripts do this automatically).
 
 Commands:
-  build           Bundle the plugin with esbuild and create publish/<id>.jpl
+  build [--analyze]
+                  Bundle the plugin with esbuild and create publish/<id>.jpl
+                  (--analyze prints an esbuild bundle-size breakdown for each bundle)
   update-version [patch|minor|major|<x.y.z>]
                   Update the version in package.json, src/manifest.json, and package-lock.json (if present):
                   increment the patch (default), minor, or major part, or set an explicit higher version
@@ -19,13 +21,22 @@ Commands:
 
 /**
  * Each command takes the project root and its arguments, and accepts at most `maxArgs` of them.
- * @type {Record<string, { maxArgs: number, run: (root: string, args: string[]) => Promise<void> }>}
+ * @type {Record<string, {
+ *   maxArgs: number,
+ *   isValidArgs?: (args: string[]) => boolean,
+ *   run: (root: string, args: string[]) => Promise<void>,
+ * }>}
  */
 const commands = {
     build: {
-        maxArgs: 0,
-        run: async (root) => {
-            const { archivePath, version } = await buildPlugin(root);
+        maxArgs: 1,
+        isValidArgs: (args) => args.length === 0 || (args.length === 1 && args[0] === '--analyze'),
+        run: async (root, [flag]) => {
+            const { archivePath, version, analysis } = await buildPlugin(root, {
+                analyze: flag === '--analyze',
+                color: Boolean(process.stdout.isTTY),
+            });
+            if (analysis) console.info(analysis);
             console.info(`Created ${path.relative(root, archivePath)} (v${version}).`);
         },
     },
@@ -51,7 +62,7 @@ if (command === '--help' || command === '-h') {
     process.exit(0);
 }
 const entry = Object.hasOwn(commands, command) ? commands[command] : undefined;
-if (!entry || args.length > entry.maxArgs) {
+if (!entry || args.length > entry.maxArgs || (entry.isValidArgs && !entry.isValidArgs(args))) {
     console.error(USAGE);
     process.exit(1);
 }
