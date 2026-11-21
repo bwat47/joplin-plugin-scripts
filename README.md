@@ -143,14 +143,11 @@ By default, bundles are minified, target ES2020, and define `process.env.NODE_EN
 | Content script (`extraScripts`)   | `contentScriptBuildOptions` | `browser`        | CommonJS            | Joplin's CodeMirror and Lezer packages, to share the host's instances |
 | Webview script (`webviewScripts`) | `webviewScriptBuildOptions` | `browser`        | Self-contained IIFE | None                                                                  |
 
-> [!NOTE]
-> Content scripts default to `browser`, unlike the generator's `target: 'node'`: desktop loads them with Node access, but mobile and the web app don't. Unresolved Node built-in imports fail the build by default, and dependency resolution prefers browser entry points where provided.
-
 - `target`: to support older runtimes, set `target` in `buildOptions` (e.g. `"es2015"`). The build ignores `compilerOptions.target` in `tsconfig.json`. The [esbuild target](https://esbuild.github.io/api/#target) controls emitted syntax only; it does not polyfill newer APIs such as `Object.fromEntries`, so test on the Joplin versions and platforms you support.
 - `alias`: relative targets resolve from the project root.
 - `define`: `process.env.NODE_ENV` stays `"production"` unless overridden, because `define` entries merge (see [Option merging](#option-merging)).
 - `external`: desktop-only plugins can list Node built-ins in `contentScriptBuildOptions.external` (e.g. `["fs"]`) to keep them as runtime `require` calls.
-- `platform`: desktop-only plugins can set `"platform": "node"` in `contentScriptBuildOptions` to match the generator and prefer Node entry points during dependency resolution.
+- `platform`: plugins that target mobile can set `"platform": "browser"` in `mainBuildOptions` so unresolved Node built-in imports fail the build and dependency resolution prefers browser entry points where provided. Content Scripts default to `"platform": "browser"`, Desktop-only plugins can set `"platform": "node"` in `contentScriptBuildOptions` to match the joplin generator and prefer Node entry points during dependency resolution.
 - `sourcemap`: for debugging, prefer `"inline"`. Setting it to `true` writes `.js.map` files into `dist/` that ship in the `.jpl`.
 
 #### Option merging
