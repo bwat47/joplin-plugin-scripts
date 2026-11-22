@@ -83,7 +83,7 @@ Run `update-api` from the plugin project root. Before contacting the registry, i
 
 Downloads `generator-joplin` directly from the registry in `npm_config_registry` (set by npm scripts), or `registry.npmjs.org`, and verifies its integrity hash. npm itself is not needed; registry authentication and proxy settings in `.npmrc` are not used.
 
-## Project layout
+## Expected Project layout
 
 - `src/index.ts`: main entry point, bundled to `dist/index.js`.
 - `src/manifest.json`: Joplin plugin metadata.
