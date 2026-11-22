@@ -1,3 +1,6 @@
+> [!note]
+> This project is developed using AI
+
 # @bwat47/joplin-plugin-scripts
 
 Build and package Joplin plugins with esbuild, replacing the standard `generator-joplin` Webpack setup.
