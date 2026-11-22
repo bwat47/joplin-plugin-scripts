@@ -18,7 +18,7 @@ There are some intentional limitations to keep things simple (e.g. no support fo
 
 ## Installation
 
-Requires Node.js 22+. The scripts run as JavaScript and do not require TypeScript.
+Requires Node.js 22+.
 
 ```sh
 npm install -D @bwat47/joplin-plugin-scripts
