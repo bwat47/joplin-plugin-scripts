@@ -1,6 +1,12 @@
 # @bwat47/joplin-plugin-scripts
 
-Build and package Joplin plugins with esbuild. Replaces the standard `generator-joplin` Webpack setup and reads esbuild options from `plugin.config.json`. The package manages the bundler and its dependencies, so each plugin only needs an npm script to invoke the build.
+Build and package Joplin plugins with esbuild, replacing the standard `generator-joplin` Webpack setup.
+
+- **Fast, lightweight builds:** bundles with esbuild (with only 3 runtime dependencies) instead of the Webpack toolchain. Build options are passed to esbuild via `plugin.config.json`, so the plugin doesn't need to maintain a build script or the individual build dependencies.
+- **First-class webview and content scripts:** separates `webviewScripts` (browser IIFE) from `extraScripts` (CommonJS with CodeMirror/Lezer externals).
+- **Non-destructive updates:** `update-api` refreshes `api/` from `generator-joplin` without overwriting other files (tsconfig, package.json, etc...).
+
+There are some intentional limitations to keep things simple (e.g. no support for custom esbuild plugins and script options are per script type rather than per script), but it can be a drop in replacement for many cases.
 
 - [Installation](#installation)
 - [Commands](#commands)
@@ -29,7 +35,8 @@ Add or replace these scripts in your plugin's `package.json`:
 }
 ```
 
-esbuild does not check types, so the suggested `dist` script runs `tsc --noEmit` before building. This type-checking step requires TypeScript installed as a development dependency in your plugin project; it is not required by the build command itself.
+> [!NOTE]
+> esbuild does not check types, so the suggested `dist` script runs `tsc --noEmit` before building.
 
 ## Commands
 
@@ -41,7 +48,8 @@ Commands run from the plugin project root, which npm scripts do automatically.
 | `update-version` | Update versions in `package.json`, `src/manifest.json`, and `package-lock.json` (if present).                              |
 | `update-api`     | Replace `api/` with the latest `generator-joplin` API and warn about category or content-script external list differences. |
 
-Run `joplin-plugin-scripts --version` (or `-v`) to print the installed `@bwat47/joplin-plugin-scripts` version. Use `--help` (or `-h`) to show usage.
+> [!NOTE]
+> Run `npx joplin-plugin-scripts --version` (or `-v`) to print the installed `@bwat47/joplin-plugin-scripts` version. Use `--help` (or `-h`) to show usage.
 
 ### `build`
 
@@ -164,7 +172,8 @@ Map-style options (`define`, `alias`, `loader`, `banner`, `footer`, and `support
 
 1. Follow [Installation](#installation) to install the package and replace the npm scripts.
 2. Add the [Joplin API path mappings](#resolve-the-joplin-api-through-typescript-paths).
-3. Align the TypeScript and build targets so type checking matches what ships: set `compilerOptions.target` to `"ES2020"` to match this build's default, or lower `buildOptions.target` to match your existing TypeScript target (see [Build options](#build-options)).
+3. Align TypeScript with esbuild so type checking matches what ships: set `compilerOptions.target` to `"ES2020"` to match this build's default (or lower `buildOptions.target` to match your existing TypeScript target; see [Build options](#build-options)).
+    - Also recommended: enable `"isolatedModules": true` so `tsc --noEmit` catches file-by-file transpilation limits that `ts-loader` allowed (such as `emitDecoratorMetadata` or cross-file `const enum`).
 4. [Translate any Webpack overrides, loaders, or plugins](#translate-webpack-overrides-to-esbuild-options).
 5. Run `npm run dist` and test the plugin in Joplin. Once the migration succeeds, remove the obsolete Webpack configuration, scripts, and development dependencies that your project no longer uses.
 
@@ -201,7 +210,7 @@ External packages remain runtime imports and are not included in the archive, so
 
 esbuild handles TypeScript, JSX, CSS, and JSON imports itself, and the `loader` option covers raw text and binary assets (e.g. `{ ".svg": "text", ".woff2": "dataurl" }`). Note these differences from common Webpack setups:
 
-- A bundle that imports CSS writes it to a `.css` file next to the bundle, e.g. `dist/dialog/dialog.css`, instead of injecting it like `style-loader`. Load it in the dialog or panel with `addScript`.
+- A bundle that imports CSS writes it to a `.css` file next to the bundle, e.g. `dist/dialog/dialog.css`, instead of injecting it like `style-loader`. Load it in a dialog or panel with `addScript`, or return it from a content script's `assets()`.
 - Imported non-TypeScript assets in `src/` (such as `.css`, `.json`, or `loader`-handled files) are still copied to `dist/` by [Asset copying](#asset-copying); add them to [`excludeAssets`](#excluded-assets) if they are only used through imports.
 - esbuild plugins cannot be configured. For Sass, Tailwind, or similar tools, run the tool before the build and write its output into `src/` (and add that output to `.gitignore`). The build then copies the output to `dist/`. Output written directly to `dist/` is deleted.
 
