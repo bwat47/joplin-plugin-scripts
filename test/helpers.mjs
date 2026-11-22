@@ -3,10 +3,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { list } from 'tar';
 
+/** @import { TestContext } from 'node:test' */
+
 /**
  * Creates a temporary plugin project with matching package.json and manifest versions and a
  * prebuilt `dist/`. The directory is removed when the test ends.
- * @param {import('node:test').TestContext} t
+ * @param {TestContext} t
  * @returns {Promise<{ directory: string, manifest: { id: string, version: string, categories: string[] } }>}
  */
 export async function projectFixture(t) {

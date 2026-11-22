@@ -7,6 +7,8 @@ import { readProject } from '../lib/packagePlugin.mjs';
 import { updateVersion } from '../lib/updateVersion.mjs';
 import { projectFixture } from './helpers.mjs';
 
+/** @import { TestContext } from 'node:test' */
+
 const syncedLock = JSON.stringify({ version: '1.2.3', packages: { '': { version: '1.2.3' } } });
 
 test('bumps package, manifest, and both lockfile versions together', async (t) => {
@@ -112,7 +114,7 @@ test('version bumps explain an invalid lockfile, and write nothing', async (t) =
 
 /**
  * Creates a fixture project at `version` with a synced lockfile.
- * @param {import('node:test').TestContext} t
+ * @param {TestContext} t
  * @param {string} version
  * @returns {Promise<string>} The project directory.
  */

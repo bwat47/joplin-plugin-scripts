@@ -12,6 +12,8 @@ import {
 } from '../lib/buildConfig.mjs';
 import { projectFixture } from './helpers.mjs';
 
+/** @import { BuildOptions } from 'esbuild' */
+
 const root = path.resolve('/project');
 
 test('reads an optional plugin config with defaults', async (t) => {
@@ -256,7 +258,7 @@ test('merges main build overrides over the defaults', () => {
 });
 
 test('keeps the root, entry, output, bundling, and format fixed for direct callers', () => {
-    /** @type {import('esbuild').BuildOptions} */
+    /** @type {BuildOptions} */
     const overrides = {
         absWorkingDir: '/elsewhere',
         entryPoints: ['other.ts'],

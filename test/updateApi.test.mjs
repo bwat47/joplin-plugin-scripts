@@ -12,6 +12,9 @@ import { VALID_CATEGORIES } from '../lib/packagePlugin.mjs';
 import { compareGeneratorLists, replaceApi, updateApi } from '../lib/updateApi.mjs';
 import { writeFiles } from './helpers.mjs';
 
+/** @import { CopyDirectory } from '../lib/updateApi.mjs' */
+/** @import { TestContext } from 'node:test' */
+
 /**
  * Builds text shaped like generator-joplin's webpack.config.js lists.
  * @param {string[]} categories
@@ -48,7 +51,7 @@ test('warns when the generator lists cannot be found', () => {
 
 /**
  * Creates an API fixture removed when the test ends.
- * @param {import('node:test').TestContext} t
+ * @param {TestContext} t
  * @returns {Promise<string>}
  */
 async function apiFixture(t) {
@@ -79,7 +82,7 @@ test('leaves api/ unchanged when the generator API is missing or cannot be copie
     await mkdir(source);
     await writeFile(path.join(source, 'index.ts'), 'new');
     // Fail after part of the new API has been written to staging.
-    /** @type {import('../lib/updateApi.mjs').CopyDirectory} */
+    /** @type {CopyDirectory} */
     const failingCopy = async (from, to) => {
         await writeFile(path.join(to, 'index.ts'), 'partial');
         throw new Error('copy failed');
@@ -95,7 +98,7 @@ const TARBALL_URL = 'https://registry.test/generator-joplin/-/generator-joplin-9
 
 /**
  * Packs a minimal generator-joplin tarball and returns its bytes.
- * @param {import('node:test').TestContext} t
+ * @param {TestContext} t
  * @returns {Promise<Buffer>}
  */
 async function generatorTarball(t) {
@@ -144,7 +147,7 @@ function sha512Integrity(bytes) {
 
 /**
  * Creates a plugin project with an existing API directory.
- * @param {import('node:test').TestContext} t
+ * @param {TestContext} t
  * @returns {Promise<string>}
  */
 async function pluginApiFixture(t) {

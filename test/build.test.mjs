@@ -10,6 +10,8 @@ import { runInNewContext } from 'node:vm';
 import { hasErrorCode } from '../lib/errors.mjs';
 import { archiveEntries, projectFixture, writeFiles } from './helpers.mjs';
 
+/** @import { TestContext } from 'node:test' */
+
 const cli = fileURLToPath(new URL('../bin/joplin-plugin-scripts.mjs', import.meta.url));
 
 /**
@@ -747,7 +749,7 @@ test(
 /**
  * Returns whether the temporary directory's file system keeps `name` and `variant` apart. If it
  * doesn't, marks `t` as skipped, since fixtures with both names cannot be created there.
- * @param {import('node:test').TestContext} t
+ * @param {TestContext} t
  * @param {string} name
  * @param {string} variant A name that some file systems treat as `name`.
  * @param {string} reason Why the test is skipped otherwise.
@@ -766,7 +768,7 @@ async function requireDistinctFileNames(t, name, variant, reason) {
 
 /**
  * Like `requireDistinctFileNames`, for names that differ only in letter case.
- * @param {import('node:test').TestContext} t
+ * @param {TestContext} t
  * @returns {Promise<boolean>}
  */
 function requireCaseSensitiveFileSystem(t) {

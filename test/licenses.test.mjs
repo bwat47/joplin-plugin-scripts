@@ -11,16 +11,18 @@ import {
 } from '../lib/licenses.mjs';
 import { projectFixture, writeFiles } from './helpers.mjs';
 
+/** @import { ImportKind, Metafile } from 'esbuild' */
+
 /**
  * Builds a minimal esbuild metafile from a list of output input paths and optional extra input metadata.
  * @param {string[]} outputInputs Paths contributing non-zero bytes to `dist/index.js`.
- * @param {Record<string, { bytes: number, imports?: { path: string, kind: import('esbuild').ImportKind, external?: boolean }[] }>} [extraInputs]
- * @returns {import('esbuild').Metafile}
+ * @param {Record<string, { bytes: number, imports?: { path: string, kind: ImportKind, external?: boolean }[] }>} [extraInputs]
+ * @returns {Metafile}
  */
 function createMetafile(outputInputs, extraInputs = {}) {
-    /** @type {import('esbuild').Metafile['inputs']} */
+    /** @type {Metafile['inputs']} */
     const inputs = {};
-    /** @type {import('esbuild').Metafile['outputs'][string]['inputs']} */
+    /** @type {Metafile['outputs'][string]['inputs']} */
     const outInputs = {};
     for (const inputPath of outputInputs) {
         inputs[inputPath] = { bytes: 100, imports: [] };
